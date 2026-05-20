@@ -1,4 +1,7 @@
-# Introducción General
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+# Introducción {.unnumbered}
 
 ## Antecedentes y motivación
 

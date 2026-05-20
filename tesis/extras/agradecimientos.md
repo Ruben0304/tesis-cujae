@@ -1,4 +1,4 @@
-# Agradecimientos
+# Agradecimientos {.unnumbered}
 
 A nuestros tutores, **Dr.C. Nayma Cepero Pérez** y **Ms.C. Ernesto Alberto Álvarez**, por su guía rigurosa, su paciencia y por confiar en este proyecto desde la primera idea hasta la última línea de código.
 

@@ -1,4 +1,4 @@
-# Lista de Símbolos
+# Lista de Símbolos {.unnumbered}
 
 \begin{description}[leftmargin=3.5cm, style=nextline, font=\bfseries]
   \item[$P$]        Potencia eléctrica generada (W)

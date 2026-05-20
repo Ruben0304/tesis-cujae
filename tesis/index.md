@@ -34,7 +34,7 @@ monofont: "Menlo"
 # Arial 12, interlineado 1.5, texto justificado (default LaTeX),
 # márgenes 3cm izq / 2.5cm sup, inf, der.
 bibliography: referencias.bib
-csl: ieee.csl
+csl: vancouver.csl
 link-citations: true
 toc: true
 toc-depth: 3
@@ -49,13 +49,8 @@ header-includes: |
   \usepackage{enumitem}
   \usepackage{graphicx}
   \usepackage{textcomp}
-  \usepackage{fancyhdr}
-  \pagestyle{fancy}
-  \fancyhf{}
-  \fancyhead[LE,RO]{\thepage}
-  \fancyhead[RE]{\nouppercase\leftmark}
-  \fancyhead[LO]{\nouppercase\rightmark}
-  \renewcommand{\headrulewidth}{0.4pt}
+  \usepackage{longtable}
+  \pagestyle{plain}
 ---
 
 <!--

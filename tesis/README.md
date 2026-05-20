@@ -58,8 +58,11 @@ Cujae/
     │
     ├── capitulo1/                ← Marco Teórico y Estado del Arte
     │   ├── introduccion.md
-    │   ├── subcapitulo1_marco_teorico.md
-    │   ├── subcapitulo2_estado_del_arte.md
+    │   ├── subcapitulo1_problema.md
+    │   ├── subcapitulo2_sistemas_digitales.md
+    │   ├── subcapitulo3_gemelo_digital.md
+    │   ├── subcapitulo4_inteligencia_artificial.md
+    │   ├── subcapitulo5_tecnologias.md
     │   └── conclusion.md
     │
     ├── capitulo2/                ← Diseño e Implementación
@@ -69,11 +72,13 @@ Cujae/
     │   ├── subcapitulo3_modelos_ml.md
     │   └── conclusion.md
     │
-    ├── capitulo3/                ← Validación, Resultados y Análisis
+    ├── capitulo3/                ← Validación y Resultados Experimentales
     │   ├── introduccion.md
-    │   ├── subcapitulo1_validacion_modelos.md
-    │   ├── subcapitulo2_resultados_experimentales.md
-    │   ├── subcapitulo3_analisis_escenarios.md
+    │   ├── subcapitulo1_estrategia.md
+    │   ├── subcapitulo2_solar.md
+    │   ├── subcapitulo3_cnn.md
+    │   ├── subcapitulo4_funcional.md
+    │   ├── subcapitulo5_caso_cujae.md
     │   └── conclusion.md
     │
     ├── conclusion/

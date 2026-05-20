@@ -1,4 +1,4 @@
-# Anexos
+# Anexos {.unnumbered}
 
 ## Anexo A — [Título del anexo]
 

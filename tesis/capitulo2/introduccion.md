@@ -1,4 +1,4 @@
-# Capítulo 2: Diseño e Implementación del Gemelo Digital
+# Diseño e Implementación del Gemelo Digital
 
 ## Introducción al capítulo
 

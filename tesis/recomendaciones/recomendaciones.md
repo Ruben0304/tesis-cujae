@@ -1,4 +1,4 @@
-# Recomendaciones
+# Recomendaciones {.unnumbered}
 
 [Listar las recomendaciones derivadas del trabajo. Cada recomendación debe ser concreta, accionable y derivada de los resultados obtenidos. No mezclar con las conclusiones — las conclusiones describen lo logrado, las recomendaciones señalan trabajo futuro.]
 

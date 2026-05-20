@@ -1,4 +1,4 @@
-# Abstract
+# Abstract {.unnumbered}
 
 **Keywords:** digital twin, photovoltaic microgrid, solar prediction, machine learning, blackouts, Cuba
 

@@ -1,4 +1,4 @@
-# Declaración de Autoría
+# Declaración de Autoría {.unnumbered}
 
 Los autores del presente Trabajo de Diploma, titulado **"Gemelo Digital para una Microrred Fotovoltaica: Monitoreo en Tiempo Real, Predicciones Inteligentes y Análisis de Escenarios de Apagón"**, declaramos que somos los únicos responsables del contenido aquí expuesto y autorizamos al Instituto Superior Politécnico José Antonio Echeverría (CUJAE) a hacer uso del mismo con la finalidad que estime conveniente.
 

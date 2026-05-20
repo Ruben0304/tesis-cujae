@@ -1,4 +1,4 @@
-# Resumen
+# Resumen {.unnumbered}
 
 **Palabras clave:** gemelo digital, microrred fotovoltaica, predicción solar, machine learning, apagones, Cuba
 

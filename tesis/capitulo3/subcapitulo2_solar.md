@@ -1,0 +1,43 @@
+## Validación del subsistema de predicción de producción solar
+
+El subsistema de predicción de la producción solar constituye el componente analítico central del gemelo digital, al condicionar la planificación del uso del almacenamiento y la generación de alertas operativas. Su validación se aborda comparando el modelo seleccionado —Random Forest— frente a tres alternativas de referencia, analizando las métricas obtenidas sobre el conjunto de prueba y caracterizando el comportamiento del modelo entrenado mediante el análisis de importancia de variables y la simulación de perfiles diarios representativos.
+
+### Configuración del modelo y características de entrada
+
+El modelo se construye sobre el algoritmo Random Forest [@breiman2001randomforests] disponible en la biblioteca scikit-learn [@pedregosa2011sklearn]. El conjunto de variables predictoras se compone de nueve características que combinan información meteorológica directa y codificación cíclica de las variables temporales. Las variables meteorológicas incluyen temperatura del aire a dos metros, humedad relativa, velocidad del viento a diez metros, cobertura nubosa y radiación de onda corta —esta última es la variable física más directamente correlacionada con la producción fotovoltaica [@trull2025folsom; @taha2025zafarana].
+
+Las variables temporales se codifican mediante transformaciones cíclicas: el ángulo correspondiente a la hora del día y al mes del año se proyecta sobre las funciones seno y coseno, lo que evita las discontinuidades artificiales que introduciría una codificación numérica lineal (por ejemplo, la transición entre las 23 y las 0 horas, o entre diciembre y enero). Esta práctica es habitual en la literatura sobre predicción de series temporales periódicas [@trull2025folsom; @almarzooqi2024hybrid].
+
+El conjunto de datos se divide en 7 008 muestras para entrenamiento y 1 752 muestras para prueba, mediante una partición aleatoria del 80/20 con semilla fija para garantizar la reproducibilidad. La capacidad máxima observada en el dataset es de 7 701 kW, valor que sirve como referencia para expresar los errores absolutos en términos porcentuales relativos a la capacidad instalada [@trull2025folsom].
+
+### Comparación frente a modelos de referencia
+
+La selección del Random Forest como modelo final se sustenta en una comparación sistemática frente a tres alternativas: regresión lineal como línea base estadística, regresión Ridge como variante regularizada del modelo lineal, y Gradient Boosting como representante del segundo método de ensemble más extendido en la literatura [@chen2016xgboost; @breiman2001randomforests]. La Figura \ref{fig:comparacion-solar} presenta la comparación gráfica de las métricas obtenidas por los cuatro modelos sobre el conjunto de prueba.
+
+![Comparación de cuatro modelos candidatos para la predicción de producción solar: regresión lineal, regresión ridge, gradient boosting y random forest. La métrica R² se reporta en el panel izquierdo y el error absoluto medio (MAE) en el panel derecho. Random Forest obtiene el mejor desempeño en ambas métricas.](comparacion_modelos_solar.png){#fig:comparacion-solar width=85%}
+
+Los modelos lineales (regresión lineal y Ridge) alcanzan un coeficiente de determinación de 0,6286, limitado por su incapacidad para capturar las interacciones no lineales entre la radiación, la temperatura y los factores temporales. Gradient Boosting eleva el R² hasta 0,8512 al modelar explícitamente las interacciones, y Random Forest lo supera marginalmente con un valor de 0,8543. En términos de error absoluto medio, la diferencia entre Gradient Boosting y Random Forest se mantiene reducida, pero suficiente para justificar la selección de este último, que además ofrece menor varianza durante la validación cruzada [@breiman2001randomforests].
+
+### Métricas obtenidas y análisis del error
+
+El modelo Random Forest seleccionado se evalúa sobre el conjunto de prueba con tres métricas estándar para tareas de regresión [@trull2025folsom; @pedregosa2011sklearn]. El coeficiente de determinación R² alcanza el valor de 0,8543, lo que indica que el modelo explica aproximadamente el 85 por ciento de la varianza observada en la potencia entregada por la planta. El error cuadrático medio (RMSE) se sitúa en 536,9 kW, y el error absoluto medio (MAE) en 229,1 kW.
+
+Para interpretar estos errores en términos operativos, conviene expresarlos como fracción de la capacidad de referencia del sistema, definida como la producción máxima observada en el dataset (7 701 kW). En estos términos, el MAE representa aproximadamente el 3 por ciento de la capacidad de referencia, y el RMSE aproximadamente el 7 por ciento, valores que se sitúan dentro del rango aceptable reportado por la literatura comparativa internacional para horizontes de predicción intradía e intra-día [@taha2025zafarana; @roga2025dnn]. La diferencia entre MAE y RMSE indica la presencia de errores ocasionales de mayor magnitud, atribuibles principalmente a transiciones meteorológicas bruscas que el modelo no logra anticipar plenamente; este comportamiento es consistente con la evidencia reportada en estudios análogos sobre el conjunto Folsom PLC y sobre datos de NASA POWER [@trull2025folsom; @taha2025zafarana].
+
+La validación cruzada de cinco particiones sobre el conjunto de entrenamiento entrega un RMSE promedio de 600,8 kW, ligeramente superior al RMSE de prueba. Esta cercanía entre las métricas de prueba y de validación cruzada sugiere que el modelo no presenta indicios apreciables de sobreajuste y que su capacidad de generalización a datos no vistos es estable [@breiman2001randomforests; @pedregosa2011sklearn].
+
+### Importancia de las características
+
+Una de las propiedades atractivas de los modelos basados en árboles, incluido Random Forest, es su capacidad para cuantificar la contribución relativa de cada variable predictora al desempeño del modelo, mediante la métrica de importancia de características [@breiman2001randomforests; @pedregosa2011sklearn]. La Figura \ref{fig:importance-solar} presenta el ranking de importancia para las nueve variables empleadas.
+
+![Importancia relativa de las nueve variables predictoras en el modelo Random Forest de producción solar, ordenada de mayor a menor. La radiación de onda corta y la codificación cíclica de la hora del día dominan claramente la predicción.](feature_importance_solar.png){#fig:importance-solar width=80%}
+
+Los resultados confirman la coherencia física del modelo: la **radiación de onda corta** emerge como la variable dominante, seguida por la codificación cíclica de la hora del día. Esta jerarquía es consistente con los principios físicos del fenómeno fotovoltaico, según los cuales la potencia entregada es aproximadamente proporcional a la irradiancia incidente, modulada por la posición del sol en el cielo [@trull2025folsom; @almarzooqi2024hybrid]. La cobertura nubosa y la temperatura ocupan posiciones intermedias en el ranking, lo que también es coherente con la literatura del campo. La concordancia entre el ranking aprendido por el modelo y el conocimiento físico previo es un indicador cualitativo adicional de validez del modelo, complementario a las métricas cuantitativas [@trull2025folsom].
+
+### Perfil de producción simulado
+
+Más allá de las métricas agregadas, la validación se completa con una demostración cualitativa del comportamiento del modelo bajo escenarios meteorológicos contrastados. La Figura \ref{fig:perfil-diario} presenta la predicción horaria del modelo para un día soleado y para un día nublado, ambos correspondientes a la ubicación de la microrred CUJAE.
+
+![Perfil de producción diaria simulado por el modelo Random Forest para dos condiciones meteorológicas: día soleado (curva superior) y día nublado (curva inferior). Ambas curvas reproducen el patrón gaussiano esperado en torno al mediodía solar, con la atenuación correspondiente a la cobertura nubosa.](perfil_produccion_diaria.png){#fig:perfil-diario width=80%}
+
+Los perfiles simulados reproducen el patrón gaussiano esperado, con producción nula durante las horas nocturnas, ascenso pronunciado en las primeras horas de la mañana, pico en torno al mediodía solar y descenso simétrico en las horas vespertinas. La atenuación característica del día nublado respecto al día soleado se modela correctamente, lo que confirma que el modelo ha aprendido la interacción entre cobertura nubosa y producción esperada. Esta validación cualitativa complementa las métricas cuantitativas y refuerza la confianza en el modelo seleccionado para su despliegue dentro del gemelo digital. El siguiente epígrafe aborda la validación del segundo componente analítico del sistema: el subsistema de diagnóstico visual del estado de los paneles.

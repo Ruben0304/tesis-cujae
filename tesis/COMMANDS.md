@@ -91,8 +91,11 @@ pandoc \
   extras/simbolos.md \
   introduccion/introduccion.md \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   capitulo2/introduccion.md \
   capitulo2/subcapitulo1_arquitectura_sistema.md \
@@ -100,9 +103,11 @@ pandoc \
   capitulo2/subcapitulo3_modelos_ml.md \
   capitulo2/conclusion.md \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   conclusion/conclusion.md \
   recomendaciones/recomendaciones.md \
@@ -113,6 +118,7 @@ pandoc \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --toc \
   --toc-depth=3 \
   --number-sections \
@@ -128,14 +134,18 @@ Los drafts siempre van a `outputs/debug/` independientemente de `$OUT` (son borr
 mkdir -p outputs/debug
 pandoc \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   -o outputs/debug/draft_capitulo1.pdf \
   --pdf-engine=xelatex \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --number-sections \
   -V geometry:margin=2.5cm \
   -V fontsize=12pt \
@@ -155,6 +165,7 @@ pandoc \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --number-sections \
   -V geometry:margin=2.5cm \
   -V fontsize=12pt \
@@ -165,15 +176,18 @@ pandoc \
 mkdir -p outputs/debug
 pandoc \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   -o outputs/debug/draft_capitulo3.pdf \
   --pdf-engine=xelatex \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --number-sections \
   -V geometry:margin=2.5cm \
   -V fontsize=12pt \
@@ -200,8 +214,11 @@ pandoc \
   extras/simbolos.md \
   introduccion/introduccion.md \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   capitulo2/introduccion.md \
   capitulo2/subcapitulo1_arquitectura_sistema.md \
@@ -209,9 +226,11 @@ pandoc \
   capitulo2/subcapitulo3_modelos_ml.md \
   capitulo2/conclusion.md \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   conclusion/conclusion.md \
   recomendaciones/recomendaciones.md \
@@ -220,6 +239,7 @@ pandoc \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --toc \
   --number-sections
 ```
@@ -240,8 +260,11 @@ pandoc \
   extras/simbolos.md \
   introduccion/introduccion.md \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   capitulo2/introduccion.md \
   capitulo2/subcapitulo1_arquitectura_sistema.md \
@@ -249,9 +272,11 @@ pandoc \
   capitulo2/subcapitulo3_modelos_ml.md \
   capitulo2/conclusion.md \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   conclusion/conclusion.md \
   recomendaciones/recomendaciones.md \
@@ -261,6 +286,7 @@ pandoc \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --toc \
   --number-sections \
   --standalone
@@ -280,8 +306,11 @@ pandoc \
   extras/simbolos.md \
   introduccion/introduccion.md \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   capitulo2/introduccion.md \
   capitulo2/subcapitulo1_arquitectura_sistema.md \
@@ -289,9 +318,11 @@ pandoc \
   capitulo2/subcapitulo3_modelos_ml.md \
   capitulo2/conclusion.md \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   conclusion/conclusion.md \
   recomendaciones/recomendaciones.md \
@@ -300,6 +331,7 @@ pandoc \
   --resource-path=.:recursos:recursos/figuras:recursos/capturas:recursos/validacion \
   --bibliography=referencias.bib \
   --citeproc \
+  --lua-filter=filters/all-row-lines.lua \
   --toc \
   --number-sections \
   --standalone \
@@ -336,8 +368,11 @@ comm -23 /tmp/usadas.txt /tmp/definidas.txt
 pandoc \
   introduccion/introduccion.md \
   capitulo1/introduccion.md \
-  capitulo1/subcapitulo1_marco_teorico.md \
-  capitulo1/subcapitulo2_estado_del_arte.md \
+  capitulo1/subcapitulo1_problema.md \
+  capitulo1/subcapitulo2_sistemas_digitales.md \
+  capitulo1/subcapitulo3_gemelo_digital.md \
+  capitulo1/subcapitulo4_inteligencia_artificial.md \
+  capitulo1/subcapitulo5_tecnologias.md \
   capitulo1/conclusion.md \
   capitulo2/introduccion.md \
   capitulo2/subcapitulo1_arquitectura_sistema.md \
@@ -345,9 +380,11 @@ pandoc \
   capitulo2/subcapitulo3_modelos_ml.md \
   capitulo2/conclusion.md \
   capitulo3/introduccion.md \
-  capitulo3/subcapitulo1_validacion_modelos.md \
-  capitulo3/subcapitulo2_resultados_experimentales.md \
-  capitulo3/subcapitulo3_analisis_escenarios.md \
+  capitulo3/subcapitulo1_estrategia.md \
+  capitulo3/subcapitulo2_solar.md \
+  capitulo3/subcapitulo3_cnn.md \
+  capitulo3/subcapitulo4_funcional.md \
+  capitulo3/subcapitulo5_caso_cujae.md \
   capitulo3/conclusion.md \
   conclusion/conclusion.md \
   recomendaciones/recomendaciones.md \
