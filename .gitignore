@@ -28,11 +28,10 @@ tesis_gemelo_digital/yarn-error.log*
 Thumbs.db
 
 # Pandoc build output (no incluir PDFs generados en el repo)
-tesis/tesis.pdf
-tesis/tesis.tex
-tesis/tesis_revision.docx
-tesis/tesis_preview.html
-tesis/draft_capitulo*.pdf
+tesis/outputs/debug/*
+tesis/outputs/release/*
+!tesis/outputs/debug/.gitkeep
+!tesis/outputs/release/.gitkeep
 
 # TypeScript cache
 tesis_gemelo_digital/*.tsbuildinfo

@@ -1,6 +1,17 @@
 ---
 title: "Gemelo Digital para una Microrred Fotovoltaica: Monitoreo en Tiempo Real, Predicciones Inteligentes y Análisis de Escenarios de Apagón"
-author: "Ruben [Apellidos]"
+subtitle: "Trabajo de Diploma en opción al título de Ingeniero en Ciencias Informáticas"
+author:
+  - Rubén Hernández Acevedo
+  - Fabián Fernández Gálvez
+tutors:
+  - "Dr.C. Nayma Cepero Pérez"
+  - "Ms.C. Ernesto Alberto Álvarez"
+institution: "Instituto Superior Politécnico José Antonio Echeverría (CUJAE)"
+faculty: "Facultad de Ingeniería Informática"
+career: "Ingeniería en Ciencias Informáticas"
+city: "La Habana, Cuba"
+month: "junio"
 date: "2026"
 lang: "es"
 documentclass: report
@@ -16,7 +27,12 @@ geometry:
   - right=2.5cm
 linestretch: 1.5
 fontsize: 12pt
-mainfont: "Times New Roman"
+mainfont: "Arial"
+sansfont: "Arial"
+monofont: "Menlo"
+# Norma CUJAE / estándar tesis ingeniería Cuba:
+# Arial 12, interlineado 1.5, texto justificado (default LaTeX),
+# márgenes 3cm izq / 2.5cm sup, inf, der.
 bibliography: referencias.bib
 csl: ieee.csl
 link-citations: true
@@ -25,34 +41,30 @@ toc-depth: 3
 lof: true
 lot: true
 numbersections: true
+header-includes: |
+  \usepackage{siunitx}
+  \usepackage{booktabs}
+  \usepackage{float}
+  \usepackage{csquotes}
+  \usepackage{enumitem}
+  \usepackage{graphicx}
+  \usepackage{textcomp}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhf{}
+  \fancyhead[LE,RO]{\thepage}
+  \fancyhead[RE]{\nouppercase\leftmark}
+  \fancyhead[LO]{\nouppercase\rightmark}
+  \renewcommand{\headrulewidth}{0.4pt}
 ---
 
-<!-- 
-  ARCHIVO PRINCIPAL DE LA TESIS
-  
-  Para compilar con pandoc:
-  
-  pandoc index.md \
-    introduccion/introduccion.md \
-    capitulo1/introduccion.md \
-    capitulo1/subcapitulo1_marco_teorico.md \
-    capitulo1/subcapitulo2_estado_del_arte.md \
-    capitulo1/conclusion.md \
-    capitulo2/introduccion.md \
-    capitulo2/subcapitulo1_arquitectura_sistema.md \
-    capitulo2/subcapitulo2_implementacion.md \
-    capitulo2/subcapitulo3_modelos_ml.md \
-    capitulo2/conclusion.md \
-    capitulo3/introduccion.md \
-    capitulo3/subcapitulo1_validacion_modelos.md \
-    capitulo3/subcapitulo2_resultados_experimentales.md \
-    capitulo3/subcapitulo3_analisis_escenarios.md \
-    capitulo3/conclusion.md \
-    conclusion/conclusion.md \
-    -o tesis.pdf \
-    --pdf-engine=xelatex \
-    --bibliography=referencias.bib \
-    --citeproc \
-    --toc \
-    --number-sections
+<!--
+  ARCHIVO PRINCIPAL DE LA TESIS — solo metadatos pandoc.
+
+  El ORDEN DE COMPILACIÓN definitivo vive en COMMANDS.md.
+  No duplicar la lista aquí: si añades un .md nuevo, edita COMMANDS.md
+  (regla documentada en README.md, sección "Agregar un Nuevo Subcapítulo").
+
+  La portada CUJAE se inyecta con --include-before-body=extras/portada.tex
+  (LaTeX puro; pandoc no genera el layout exigido por la norma).
 -->
