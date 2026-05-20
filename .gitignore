@@ -1,0 +1,34 @@
+# Dependencies
+tesis_gemelo_digital/node_modules/
+
+# Next.js build output
+tesis_gemelo_digital/.next/
+tesis_gemelo_digital/out/
+
+# Environment variables
+tesis_gemelo_digital/.env
+tesis_gemelo_digital/.env.local
+tesis_gemelo_digital/.env.*.local
+
+# Logs
+tesis_gemelo_digital/npm-debug.log*
+tesis_gemelo_digital/yarn-debug.log*
+tesis_gemelo_digital/yarn-error.log*
+
+# OS
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Pandoc build output (no incluir PDFs generados en el repo)
+tesis/tesis.pdf
+tesis/tesis.tex
+tesis/tesis_revision.docx
+tesis/tesis_preview.html
+tesis/draft_capitulo*.pdf
+
+# TypeScript cache
+tesis_gemelo_digital/*.tsbuildinfo
+
+# Vercel
+tesis_gemelo_digital/.vercel
