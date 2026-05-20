@@ -21,7 +21,7 @@ El módulo de pruebas del backend totaliza **86 pruebas unitarias** distribuidas
 | `test_user_service.py`           | 31      | Normalización de correos, hashing con *scrypt*, validación de roles, mapeo de documentos de usuario |
 | **Total**                        | **86**  |                                                                    |
 
-: Distribución de pruebas unitarias en el backend Python. {#tbl:backend-tests}
+: Distribución de pruebas del backend. {#tbl:backend-tests}
 
 Las pruebas de `test_prediction_service.py` constituyen el conjunto más extenso y abordan el corazón analítico del backend [@pytest2024docs]. Verifican que el cálculo de producción horaria responde correctamente a los factores de eficiencia esperados según la hora del día (potencia nula antes de las 6 y después de las 19 horas, factor unitario en el pico solar entre las 12 y las 14, decrecimiento simétrico hacia las horas extremas del día), que el cálculo de la confianza de predicción combina adecuadamente las variables meteorológicas, y que los ajustes por escenarios de apagón modifican la producción y el consumo previstos en los porcentajes documentados en el Capítulo 2.
 
@@ -39,7 +39,7 @@ El módulo de pruebas del frontend totaliza **77 pruebas unitarias** distribuida
 | `predictions.test.ts`         | 29      | Generación de predicciones horarias, integración con escenarios de apagón, generación de alertas |
 | **Total**                     | **77**  |                                                                    |
 
-: Distribución de pruebas unitarias en el frontend TypeScript. {#tbl:frontend-tests}
+: Distribución de pruebas del frontend. {#tbl:frontend-tests}
 
 Las pruebas de `calculations.test.ts` verifican siete grupos de funciones puras [@vitest2024docs]. El cálculo de métricas del sistema —producción acumulada, consumo acumulado, balance, dióxido de carbono evitado— se prueba sobre históricos de tamaño y contenido controlado. La función que distribuye la energía entre los cinco caminos posibles del sistema se prueba sistemáticamente sobre todos los escenarios de equilibrio entre generación, consumo y nivel de batería. El cálculo del Performance Ratio según la norma IEC 61724-1 se prueba sobre valores de referencia con resultado esperado conocido. La estrategia de batería —decisión entre carga, descarga y reposo— se prueba sobre todos los puntos de transición del algoritmo documentado en el Capítulo 2.
 

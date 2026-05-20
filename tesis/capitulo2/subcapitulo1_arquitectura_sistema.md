@@ -67,7 +67,7 @@ La Tabla \ref{tbl:stack} resume las tecnologías concretas seleccionadas y las v
 | Servidor GraphQL          | Strawberry GraphQL            | 0.245.0   | Esquema y resolvers GraphQL sobre FastAPI |
 | Biblioteca de ML          | scikit-learn                  | 1.5.2     | Random Forest para predicción solar       |
 
-: Stack tecnológico del sistema. {#tbl:stack}
+: Stack tecnológico. {#tbl:stack}
 
 ### Diseño de la Base de Datos
 

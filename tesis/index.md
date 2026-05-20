@@ -50,6 +50,8 @@ header-includes: |
   \usepackage{graphicx}
   \usepackage{textcomp}
   \usepackage{longtable}
+  \AtBeginDocument{\renewcommand{\tablename}{Tabla}\renewcommand{\listtablename}{Índice de tablas}}
+  \let\maketitle\relax
   \pagestyle{plain}
 ---
 

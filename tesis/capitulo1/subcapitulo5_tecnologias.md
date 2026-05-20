@@ -13,7 +13,7 @@ El componente de frontend se ocupa de la presentación del estado del gemelo dig
 | **SvelteKit** | Svelte | Basado en un compilador que produce *bundles* notablemente más ligeros que sus competidores; SSR con hidratación selectiva; ecosistema en crecimiento pero menos extenso que React o Vue |
 | **Remix** | React | Centrado en patrones de carga de datos con *loaders* y *actions* del lado del servidor; comparte ecosistema con React pero su comunidad es más reducida que la de Next.js |
 
-: Frameworks de frontend analizados como candidatos para la capa de presentación del gemelo digital. {#tbl:frontend}
+: Frameworks de frontend candidatos. {#tbl:frontend}
 
 Las cuatro alternativas son técnicamente viables para los requisitos planteados por un sistema de este tipo [@nextjs2024docs; @react2024docs]. Las diferencias dominantes residen en la madurez del ecosistema, en la curva de aprendizaje para el equipo de desarrollo y en la calidad del soporte documental disponible, criterios particularmente relevantes en un proyecto de pregrado con plazos acotados.
 
@@ -28,7 +28,7 @@ El componente de backend aloja la lógica de negocio, expone los servicios de c�
 | **Flask** | Python | Micro-framework minimalista de larga trayectoria; máxima flexibilidad pero requiere componer manualmente cada capa (autenticación, ORM, validación), lo que incrementa el coste de desarrollo |
 | **Express** | Node.js | Estándar *de facto* en el ecosistema Node; minimalista y basado en *middleware*; comparte runtime con el frontend pero carece del ecosistema científico de Python |
 
-: Frameworks de backend analizados como candidatos para los servicios de lógica de negocio y de inteligencia artificial. {#tbl:backend}
+: Frameworks de backend candidatos. {#tbl:backend}
 
 La elección entre alternativas de Python y de Node.js en este nivel responde principalmente a la disponibilidad de bibliotecas científicas: el ecosistema de Python para aprendizaje automático y procesamiento numérico no tiene equivalente en JavaScript [@pedregosa2011sklearn; @fastapi2024docs]. Dentro del propio Python, FastAPI ha consolidado durante los últimos años una posición competitiva frente a Django y Flask por su modelo asíncrono y por su soporte nativo de tipado, características alineadas con las necesidades de un sistema integrado con componentes de aprendizaje automático.
 
@@ -43,7 +43,7 @@ El componente de persistencia almacena la configuración del sistema —paneles,
 | **InfluxDB** | Series temporales | Optimizada para ingesta masiva de eventos con marca temporal y consultas analíticas sobre ventanas de tiempo; mecanismos nativos de retención y compresión; lenguaje de consulta específico [@atzori2010iot] |
 | **TimescaleDB** | Híbrida (series temporales sobre PostgreSQL) | Extensión de PostgreSQL que añade capacidades de series temporales sin renunciar al modelo relacional ni al lenguaje SQL; permite combinar ambos paradigmas en una misma instancia |
 
-: Sistemas gestores de bases de datos analizados como candidatos para la capa de persistencia. {#tbl:bd}
+: Sistemas gestores de bases de datos candidatos. {#tbl:bd}
 
 La idoneidad de cada alternativa depende del perfil dominante de los datos. Cuando la carga combina lecturas temporales de frecuencia moderada con configuraciones de esquema evolutivo y no se requiere transaccionalidad estricta entre múltiples agregados, el modelo documental ofrece el mejor compromiso entre flexibilidad y desempeño [@carvalho2023nosql]. Las bases de datos de series temporales aportan ventajas operativas cuando el volumen de eventos por unidad de tiempo es elevado, escenario que solo emerge en despliegues con instrumentación densa y prolongada en el tiempo.
 
@@ -59,7 +59,7 @@ Al margen del trío frontend/backend/persistencia, un gemelo digital de microrre
 | Arquitectura CNN ligera para visión | **MobileNetV2**, ResNet, EfficientNet, VGG | Equilibrio entre exactitud y coste de inferencia sobre hardware estándar [@sandler2018mobilenetv2] |
 | Fuente de datos meteorológicos | **Open-Meteo**, OpenWeather, NASA POWER, AccuWeather, Copernicus | Coste recurrente, granularidad temporal y disponibilidad de la variable de irradiancia [@openmeteo2024] |
 
-: Otras tecnologías de soporte analizadas. La opción más adecuada en cada categoría se indica en negrita. {#tbl:otras}
+: Otras tecnologías de soporte. {#tbl:otras}
 
 La idoneidad relativa entre alternativas en estas categorías se apoya en el equilibrio entre madurez de la herramienta y compatibilidad con el resto del stack [@recharts2024docs; @sandler2018mobilenetv2]. Las bibliotecas declarativas y las arquitecturas ligeras tienden a imponerse cuando se busca minimizar el tiempo de desarrollo sin sacrificar significativamente la calidad del resultado, situación habitual en proyectos académicos.
 
@@ -78,7 +78,7 @@ A partir del análisis precedente, la Tabla \ref{tbl:tecnologias-adecuadas} resu
 | ML para detección visual | **TensorFlow / Keras** con **MobileNetV2** (*transfer learning*) |
 | Fuente meteorológica | **Open-Meteo** |
 
-: Tecnologías que resultan más adecuadas en cada categoría funcional, según el análisis precedente. {#tbl:tecnologias-adecuadas}
+: Tecnologías más adecuadas por categoría. {#tbl:tecnologias-adecuadas}
 
 En el plano del frontend, **Next.js sobre React con TypeScript** destaca como la opción más adecuada por tres razones convergentes [@nextjs2024docs; @react2024docs; @typescript2024docs]. La primera es el soporte nativo de renderizado híbrido, que ataca directamente el requisito de combinar tiempos de primera carga reducidos con interactividad sostenida, propio de un panel de monitoreo en tiempo real. La segunda es la madurez del ecosistema React, que aporta abundantes bibliotecas de componentes y soporte documental, lo que reduce el tiempo necesario para implementar interfaces complejas. La tercera es la disciplina que impone TypeScript al tipado de los datos que circulan entre la capa de servicios y la capa de componentes, particularmente relevante en sistemas con estructuras complejas como configuraciones de paneles y baterías o series de predicciones horarias.
 

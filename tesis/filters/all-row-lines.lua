@@ -108,10 +108,6 @@ function Table(tbl)
 
   local latex = "\\begin{longtable}{" .. colspec .. "}\n"
 
-  if caption ~= "" then
-    latex = latex .. "\\caption{" .. caption .. "}" .. label .. "\\\\\n"
-  end
-
   latex = latex .. "\\hline\n"
 
   for _, h in ipairs(headers) do
@@ -120,6 +116,10 @@ function Table(tbl)
 
   for _, r in ipairs(bodies) do
     latex = latex .. r .. " \\\\ \\hline\n"
+  end
+
+  if caption ~= "" then
+    latex = latex .. "\\caption{" .. caption .. "}" .. label .. "\\\\\n"
   end
 
   latex = latex .. "\\end{longtable}\n"
