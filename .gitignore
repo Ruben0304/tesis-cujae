@@ -1,6 +1,13 @@
 # Dependencies
 tesis_gemelo_digital/node_modules/
 
+# Python virtual environments
+tesis_gemelo_digital/backend/venv/
+tesis_gemelo_digital/mock_weather_server/venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+
 # Next.js build output
 tesis_gemelo_digital/.next/
 tesis_gemelo_digital/out/
