@@ -199,6 +199,28 @@ def authenticate_or_provision_ldap(payload: Dict[str, Any]) -> Dict[str, Any]:
     return _map_user(document)
 
 
+def change_password(email: str, current_password: str, new_password: str) -> bool:
+    """
+    Change the password of the authenticated user (identified by the JWT email).
+    LDAP-provisioned accounts have no local password and must change it in LDAP.
+    """
+    if not current_password or not new_password:
+        raise ValueError("La contraseña actual y la nueva son obligatorias.")
+    user = _collection().find_one({"email": _normalize_email(email)})
+    if not user:
+        raise ValueError("Usuario no encontrado.")
+    if not user.get("passwordHash"):
+        raise ValueError("Esta cuenta usa LDAP; la contraseña se gestiona en el directorio institucional.")
+    if not _verify_password(current_password, user["passwordHash"]):
+        raise ValueError("La contraseña actual no es correcta.")
+    _ensure_password(new_password)
+    _collection().update_one(
+        {"_id": user["_id"]},
+        {"$set": {"passwordHash": _hash_password(new_password), "updatedAt": datetime.utcnow()}},
+    )
+    return True
+
+
 def list_users() -> List[Dict[str, Any]]:
     cursor = _collection().find().sort("createdAt", -1)
     return [_map_user(doc) for doc in cursor]

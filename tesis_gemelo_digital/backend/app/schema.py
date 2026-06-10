@@ -51,6 +51,7 @@ from app.services.system_config import get_system_config
 from app.services.user_service import (
     authenticate_user,
     authenticate_or_provision_ldap,
+    change_password,
     register_user,
     list_users,
     is_admin,
@@ -1557,6 +1558,12 @@ class LoginInput:
 
 
 @strawberry.input
+class ChangePasswordInput:
+    currentPassword: str
+    newPassword: str
+
+
+@strawberry.input
 class LdapLoginInput:
     email: str
     password: str
@@ -1761,6 +1768,12 @@ class Mutation:
     def login_user_mutation(self, input: LoginInput) -> AuthPayloadType:
         user = authenticate_user(input.__dict__)
         return AuthPayloadType(user=_map_user(user), token=create_token(user["email"], user["role"]))
+
+    @strawberry.mutation(name="changePassword")
+    def change_password_mutation(self, info: strawberry.types.Info, input: ChangePasswordInput) -> bool:
+        # The email comes from the verified JWT, never from the client payload.
+        current_user = require_auth(info.context)
+        return change_password(current_user["sub"], input.currentPassword, input.newPassword)
 
     @strawberry.mutation(name="loginLdap")
     def login_ldap_mutation(self, input: LdapLoginInput) -> AuthPayloadType:

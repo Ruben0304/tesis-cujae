@@ -8,6 +8,7 @@ import WeatherToday, { LottieAnimationType } from './WeatherToday';
 import WeatherForecast from './WeatherForecast';
 import PredictionsPanel from './PredictionsPanel';
 import FloatingBottomNav from './FloatingBottomNav';
+import UserMenu from './UserMenu';
 import SolarStatsView from './SolarStatsView';
 import HistorialPanel from './HistorialPanel';
 import StarsBackground from './StarsBackground';
@@ -664,6 +665,16 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [activeSection, setActiveSection] = useState<'overview' | 'stats' | 'admin' | 'historial'>('overview');
+
+  // Permite llegar a una sección concreta vía URL (p. ej. al volver desde /ajustes
+  // con la barra inferior, o el redirect legado /configuracion → /?section=...).
+  useEffect(() => {
+    const section = new URLSearchParams(window.location.search).get('section');
+    if (section === 'stats' || section === 'historial' || section === 'admin') {
+      setActiveSection(section);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [isSlowNetwork, setIsSlowNetwork] = useState(false);
   const [bgGradient, setBgGradient] = useState('linear-gradient(to bottom right, #e0f2fe, #ffffff, #dbeafe)');
@@ -963,10 +974,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     );
   }
 
-  const handleAddDevice = () => {
-    router.push('/ajustes');
-  };
-
   return (
     <div className="min-h-screen transition-all duration-[2000ms] ease-in-out relative" style={{ backgroundImage: bgGradient }}>
       {/* Stars effect for night mode */}
@@ -984,32 +991,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 50 kW · 100 kWh · La Habana, Cuba
               </p>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              {user.role === 'admin' && (
-                <button
-                  onClick={() => setActiveSection('admin')}
-                  className={`hidden sm:inline-flex items-center rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${activeSection === 'admin'
-                    ? 'border-purple-200 bg-purple-50 text-purple-700'
-                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                    }`}
-                >
-                  Admin
-                </button>
-              )}
-              <button
-                onClick={() => router.push('/ajustes')}
-                className="hidden sm:inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-              >
-                Ajustes
-              </button>
-              <button
-                onClick={fetchData}
-                className="p-2 sm:p-3 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors group"
-                title="Actualizar"
-              >
-                <ArrowPathIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 group-hover:rotate-180 transition-transform duration-500" />
-              </button>
-            </div>
+            <UserMenu user={user} onLogout={onLogout} />
           </div>
         </div>
       </header>
@@ -1122,7 +1104,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           }
           setActiveSection(section);
         }}
-        onAddDevice={handleAddDevice}
+        isAdmin={user.role === 'admin'}
       />
     </div>
   );

@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowRightOnRectangleIcon,
-} from '@heroicons/react/24/outline';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import AuthGate from '@/app/components/AuthGate';
+import FloatingBottomNav from '@/app/components/FloatingBottomNav';
+import UserMenu from '@/app/components/UserMenu';
 import type { User } from '@/types';
 import { canAccessModule, moduleKeyFromPath } from '@/lib/permissions';
 
@@ -65,14 +63,6 @@ export default function AjustesLayout({ children }: { children: React.ReactNode 
     router.push('/');
   };
 
-  const handleGoBack = () => {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push('/');
-  };
-
   const pageTitle = useMemo(() => {
     const active = navItems.find((item) => item.href === pathname);
     if (!active) return 'Ajustes';
@@ -97,38 +87,29 @@ export default function AjustesLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-100">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleGoBack}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeftIcon className="h-4 w-4" />
-              Atrás
-            </button>
-
-            <div>
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div>
             <p className="text-xs uppercase tracking-wide text-slate-400">Microrred solar</p>
             <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
-            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-            >
-              <ArrowRightOnRectangleIcon className="h-4 w-4" />
-              Salir
-            </button>
-          </div>
+          <UserMenu user={user} onLogout={handleLogout} />
         </div>
-
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-32 sm:px-6">{children}</main>
+
+      <FloatingBottomNav
+        active="devices"
+        isAdmin={user.role === 'admin'}
+        onSelect={(section) => {
+          if (section === 'devices') {
+            router.push('/ajustes');
+            return;
+          }
+          router.push(section === 'overview' ? '/' : `/?section=${section}`);
+        }}
+      />
     </div>
   );
 }
