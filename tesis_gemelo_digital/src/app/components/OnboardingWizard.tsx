@@ -1052,6 +1052,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState<Direction>('none');
   const [transitioning, setTransitioning] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const navigate = useCallback((next: number, dir: Direction) => {
     setDirection(dir);
@@ -1073,23 +1074,38 @@ export default function OnboardingWizard({ onComplete }: Props) {
   }, [onComplete]);
 
   const handleSaveLocation = useCallback(async (data: { lat: number; lon: number; name: string }) => {
-    try { await executeMutation(SAVE_LOCATION_MUTATION, { input: data }); } catch { /* ignore */ }
-    forward(2);
+    setSaveError(null);
+    try {
+      await executeMutation(SAVE_LOCATION_MUTATION, { input: data });
+      forward(2);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'No se pudo guardar la ubicación. Revise la conexión con el servidor.');
+    }
   }, [forward]);
 
   const handleSavePanel = useCallback(async (data: {
     manufacturer: string; model?: string; ratedPowerKw: number;
     quantity: number; tiltDegrees?: number; orientation?: string;
   }) => {
-    try { await executeMutation(CREATE_PANEL_MUTATION, { input: data }); } catch { /* ignore */ }
-    forward(3);
+    setSaveError(null);
+    try {
+      await executeMutation(CREATE_PANEL_MUTATION, { input: data });
+      forward(3);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'No se pudieron guardar los paneles. Revise la conexión con el servidor.');
+    }
   }, [forward]);
 
   const handleSaveBattery = useCallback(async (data: {
     manufacturer: string; model?: string; capacityKwh: number; quantity: number;
   }) => {
-    try { await executeMutation(CREATE_BATTERY_MUTATION, { input: data }); } catch { /* ignore */ }
-    forward(4);
+    setSaveError(null);
+    try {
+      await executeMutation(CREATE_BATTERY_MUTATION, { input: data });
+      forward(4);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'No se pudo guardar la batería. Revise la conexión con el servidor.');
+    }
   }, [forward]);
 
   const cardTransform = transitioning
@@ -1265,6 +1281,24 @@ export default function OnboardingWizard({ onComplete }: Props) {
             }}
           >
             {step >= 1 && step <= 3 && <BackButton onClick={back} />}
+
+            {saveError && step >= 1 && step <= 3 && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  borderRadius: 12,
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                }}
+              >
+                {saveError}
+              </div>
+            )}
 
             {step === 0 && <WelcomeContent onStart={() => forward(1)} onSkip={finish} />}
             {step === 1 && <LocationContent onSave={handleSaveLocation} onSkip={() => forward(2)} />}

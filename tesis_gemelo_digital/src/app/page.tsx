@@ -85,9 +85,9 @@ export default function Home() {
   // Loading — restoring session
   if (!bootstrapped) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-transparent">
-        <div className="text-center text-gray-600">
-          <ArrowPathIcon className="w-12 h-12 text-green-400 animate-spin mx-auto mb-4" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center text-slate-600">
+          <ArrowPathIcon className="w-12 h-12 text-sky-500 animate-spin mx-auto mb-4" />
           Preparando interfaz…
         </div>
       </div>
@@ -101,8 +101,8 @@ export default function Home() {
   // Loading — checking setup
   if (!setupChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#03070f]">
-        <ArrowPathIcon className="w-8 h-8 text-emerald-500 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <ArrowPathIcon className="w-8 h-8 text-sky-500 animate-spin" />
       </div>
     );
   }

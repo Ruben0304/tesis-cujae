@@ -18,8 +18,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gemelo Digital - Microrred Solar",
-  description: "Sistema de monitoreo y predicción en tiempo real de microrred fotovoltaica",
+  title: {
+    default: "Gemelo Digital · Microrred Solar Fotovoltaica",
+    template: "%s · Gemelo Digital",
+  },
+  description:
+    "Monitoreo, predicción y análisis de una microrred solar fotovoltaica de 50 kW con almacenamiento de 100 kWh en La Habana, Cuba.",
+  applicationName: "Gemelo Digital Fotovoltaico",
+  keywords: ["gemelo digital", "energía fotovoltaica", "microrred solar", "CUJAE"],
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({

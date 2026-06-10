@@ -35,7 +35,7 @@ const sections = [
   {
     href: '/ajustes/clima',
     title: 'Fuente de clima',
-    subtitle: 'Enlace de APIs meteorológicas',
+    subtitle: 'Conexión con servicios meteorológicos',
     icon: <Info className="h-5 w-5 text-fuchsia-600" />,
   },
   {
@@ -58,7 +58,7 @@ export default function AjustesHomePage() {
       <header className="mb-5">
         <h2 className="text-xl font-semibold text-slate-900">Ajustes</h2>
         <p className="text-sm text-slate-500">
-          Navegue por secciones independientes para administrar cada configuración por separado.
+          Administre cada parte de la configuración en su propia sección.
         </p>
       </header>
 

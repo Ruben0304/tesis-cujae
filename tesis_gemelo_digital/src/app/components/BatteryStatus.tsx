@@ -28,7 +28,7 @@ interface BatteryDischargeEstimateResponse {
   };
 }
 
-const clampHour = (value: number) => Math.min(24, Math.max(0, Math.round(value)));
+const clampHour = (value: number) => Math.min(23, Math.max(0, Math.round(value)));
 
 export default function BatteryStatus({ batteries }: BatteryStatusProps) {
   const router = useRouter();
@@ -245,12 +245,12 @@ export default function BatteryStatus({ batteries }: BatteryStatusProps) {
                 <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Hora de inicio (0-24)
+                      Hora de inicio (0-23)
                     </label>
                     <input
                       type="number"
                       min={0}
-                      max={24}
+                      max={23}
                       step={1}
                       value={startHour}
                       onChange={(event) => setStartHour(clampHour(Number(event.target.value)))}

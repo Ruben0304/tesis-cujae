@@ -16,9 +16,10 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
     ? lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
     : null;
 
-  // Get weather icon based on condition
-  const getWeatherIcon = (condition: WeatherCondition, size: number = 24) => {
-    const className = `w-${size} h-${size}`;
+  // Get weather icon based on condition.
+  // El tamaño se pasa como clase Tailwind completa para que el compilador la detecte
+  // (las clases construidas dinámicamente como `w-${n}` no se generan en el build).
+  const getWeatherIcon = (condition: WeatherCondition, className: string = 'w-6 h-6') => {
     switch (condition) {
       case 'sunny':
         return <Sun className={className + ' text-yellow-400'} />;
@@ -51,7 +52,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
           </span>
           {lastUpdatedLabel && (
             <span className="text-[11px] text-gray-500">
-              Act. {lastUpdatedLabel}
+              Actualizado {lastUpdatedLabel}
             </span>
           )}
         </div>
@@ -66,7 +67,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
       {/* Current weather */}
       <div className="flex items-center justify-between mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
         <div className="flex items-center gap-4">
-          {getWeatherIcon(currentCondition, 16)}
+          {getWeatherIcon(currentCondition, 'w-16 h-16')}
           <div>
             <div className="text-5xl font-extrabold text-gray-900">
               {temperature.toFixed(1)}°
@@ -77,7 +78,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
                 : currentCondition === 'sunny'
                 ? 'Soleado'
                 : currentCondition === 'partly-cloudy'
-                ? 'Parcialmente Nublado'
+                ? 'Parcialmente nublado'
                 : currentCondition === 'cloudy'
                 ? 'Nublado'
                 : 'Lluvioso'}
@@ -91,7 +92,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-1">
             <Gauge className="w-4 h-4 text-orange-400" />
-            <span className="text-xs text-gray-600">Radiación Solar</span>
+            <span className="text-xs text-gray-600">Radiación solar</span>
           </div>
           <div className="text-lg font-bold text-gray-900">
             {solarRadiation} W/m²
@@ -132,7 +133,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
       {/* 5-day forecast */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
-          Pronóstico 5 Días
+          Pronóstico a 5 días
         </h3>
         <div className="space-y-2">
           {forecast.slice(0, 5).map((day, index) => (
@@ -141,7 +142,7 @@ export default function WeatherWidget({ weather }: WeatherWidgetProps) {
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
             >
               <div className="flex items-center gap-3 flex-1">
-                {getWeatherIcon(day.condition, 6)}
+                {getWeatherIcon(day.condition, 'w-6 h-6')}
                 <span className="text-sm font-medium text-gray-700 w-24">
                   {index === 0
                     ? 'Hoy'

@@ -46,8 +46,8 @@ const FEATURE_CARDS = [
   },
   {
     icon: ChartPieIcon,
-    title: 'Insights accionables',
-    description: 'Predicciones inteligentes y alarmas de energía en un mismo panel.',
+    title: 'Análisis accionable',
+    description: 'Pronóstico de generación y alertas energéticas en un mismo panel.',
   },
 ];
 
@@ -218,16 +218,6 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
   };
 
   const modeIndex = isRegister ? 1 : isLdap ? 2 : 0;
-  const modeHeadline = isRegister
-    ? 'Registrar nuevo operador'
-    : isLdap
-      ? 'Acceso vía LDAP institucional'
-      : 'Bienvenido de nuevo';
-  const modeSummary = isRegister
-    ? 'Habilite credenciales para que otro miembro administre la microrred solar.'
-    : isLdap
-      ? 'Use su cuenta del directorio corporativo. En el primer ingreso le pediremos el código de invitación de un administrador.'
-      : 'Recupere el panel del gemelo digital y continúe monitoreando la energía.';
   const oppositePrompt = isRegister ? '¿Ya forma parte del equipo?' : '¿Primera vez en la plataforma?';
   const oppositeAction = isRegister ? 'Acceder con mi cuenta' : 'Crear acceso';
 
@@ -259,7 +249,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                   Gemelo Digital Fotovoltaico
                 </h1>
                 <p className="text-sm text-white/70 leading-relaxed">
-                  Supervisión proactiva del sistema fotovoltaico, automatización de alertas y análisis predictivo en una interfaz limpia.
+                  Monitoreo en tiempo real, predicción de generación y consumo, y análisis de apagones para la microrred solar.
                 </p>
               </div>
 
@@ -281,12 +271,24 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
               </div>
             </div>
 
-            <div className="relative z-10 border-t border-white/10 px-12 py-8 text-white/80">
+            <div className="relative z-10 border-t border-white/10 px-12 py-8">
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-200/70">
-                Modo actual
+                Sistema monitoreado
               </p>
-              <p className="mt-3 text-lg font-semibold text-white">{modeHeadline}</p>
-              <p className="text-sm text-blue-100/80">{modeSummary}</p>
+              <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+                <div>
+                  <p className="text-xl font-semibold text-white">50 kW</p>
+                  <p className="text-xs text-blue-100/70">Generación solar</p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-white">100 kWh</p>
+                  <p className="text-xs text-blue-100/70">Almacenamiento</p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-white">La Habana</p>
+                  <p className="text-xs text-blue-100/70">Cuba</p>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -300,6 +302,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                   />
                   <button
                     type="button"
+                    aria-pressed={mode === 'login'}
                     onClick={() => handleModeChange('login')}
                     className={`relative z-10 flex-1 rounded-full px-4 py-2 transition-colors ${mode === 'login' ? 'text-slate-900' : 'hover:text-slate-700'
                       }`}
@@ -308,6 +311,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                   </button>
                   <button
                     type="button"
+                    aria-pressed={isRegister}
                     onClick={() => handleModeChange('register')}
                     className={`relative z-10 flex-1 rounded-full px-4 py-2 transition-colors ${isRegister ? 'text-slate-900' : 'hover:text-slate-700'
                       }`}
@@ -316,6 +320,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                   </button>
                   <button
                     type="button"
+                    aria-pressed={isLdap}
                     onClick={() => handleModeChange('ldap')}
                     className={`relative z-10 flex-1 rounded-full px-4 py-2 transition-colors ${isLdap ? 'text-slate-900' : 'hover:text-slate-700'
                       }`}
@@ -332,7 +337,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                 <h2 className="text-3xl font-semibold text-slate-900">{title}</h2>
                 <p className="text-sm text-slate-500">
                   {isRegister
-                    ? 'Invite a un nuevo operador para planificar mantenimientos, supervisar baterías y responder a apagones.'
+                    ? 'Cree su cuenta de operador para planificar mantenimientos, supervisar baterías y responder a apagones.'
                     : isLdap
                       ? 'Autenticación contra el directorio corporativo. En su primer ingreso necesitará el código de invitación del administrador.'
                       : 'Ingrese con sus credenciales o utilice datos demo para explorar el gemelo digital.'}
@@ -390,7 +395,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className="mt-2 w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-slate-900 shadow-inner shadow-white/40 transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200/50 focus:outline-none"
-                    placeholder={isLdap ? 'Contraseña LDAP' : 'Mínimo 8 caracteres'}
+                    placeholder={isLdap ? 'Contraseña LDAP' : isRegister ? 'Mínimo 8 caracteres' : 'Su contraseña'}
                     autoComplete={isRegister ? 'new-password' : 'current-password'}
                     minLength={isRegister ? 8 : undefined}
                   />
@@ -402,7 +407,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                     style={{ transform: 'translateY(0%)', opacity: 1 }}
                   >
                     <label className="block text-sm font-medium text-slate-700" htmlFor="invitationCode">
-                      Código de Invitación
+                      Código de invitación
                     </label>
                     <div className="relative">
                       <input
@@ -428,6 +433,8 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
 
               {message && (
                 <div
+                  role={message.type === 'error' ? 'alert' : 'status'}
+                  aria-live="polite"
                   className={`rounded-2xl border px-4 py-3 text-sm shadow-inner transition ${message.type === 'error'
                     ? 'border-red-300/60 bg-red-50 text-red-600'
                     : 'border-sky-300/60 bg-sky-50 text-sky-600'

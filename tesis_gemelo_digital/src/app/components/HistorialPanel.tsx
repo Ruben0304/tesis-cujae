@@ -20,6 +20,9 @@ import {
   CloudArrowDownIcon,
   TableCellsIcon,
   DocumentTextIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { executeQuery, executeMutation } from '@/lib/graphql-client';
 import {
@@ -93,7 +96,18 @@ export default function HistorialPanel() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(14);
-  const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [seedMessage, setSeedMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // El sembrado de datos de demostración solo se ofrece a administradores
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('gd_auth_user');
+      if (stored) setIsAdmin(JSON.parse(stored)?.role === 'admin');
+    } catch {
+      setIsAdmin(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -141,12 +155,12 @@ export default function HistorialPanel() {
       const count = data?.seedHistoricalData ?? 0;
       setSeedMessage(
         count > 0
-          ? `✅ Se generaron ${count} lecturas simuladas para los últimos 30 días.`
-          : '⚠️ Los datos ya existían. No se insertaron registros adicionales.'
+          ? { type: 'success', text: `Se generaron ${count} lecturas simuladas para los últimos 30 días.` }
+          : { type: 'warning', text: 'Los datos ya existían. No se insertaron registros adicionales.' }
       );
       await fetchData();
     } catch (err) {
-      setSeedMessage(`❌ ${err instanceof Error ? err.message : 'Error al generar datos.'}`);
+      setSeedMessage({ type: 'error', text: err instanceof Error ? err.message : 'Error al generar datos.' });
     } finally {
       setSeeding(false);
     }
@@ -164,7 +178,7 @@ export default function HistorialPanel() {
     try {
       const now = new Date();
       const meta = {
-        title: viewMode === 'daily' ? 'Reporte de Resumen Diario' : 'Reporte de Lecturas Horarias',
+        title: viewMode === 'daily' ? 'Reporte de resumen diario' : 'Reporte de lecturas horarias',
         systemName: 'Gemelo Digital Fotovoltaico',
         location: 'La Habana, Cuba',
         period: `Últimos ${days} días`,
@@ -214,7 +228,7 @@ export default function HistorialPanel() {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <ChartBarIcon className="h-6 w-6 text-emerald-400" />
-            Datos Históricos
+            Datos históricos
           </h2>
           <p className="text-sm text-slate-400 mt-1">
             Serie temporal de producción, consumo y nivel de batería
@@ -263,16 +277,18 @@ export default function HistorialPanel() {
             Actualizar
           </button>
 
-          {/* Seed button */}
-          <button
-            onClick={handleSeed}
-            disabled={seeding}
-            className="flex items-center gap-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 px-3 py-2 text-sm text-white transition disabled:opacity-50 border border-indigo-500"
-            title="Generar datos simulados para demostración (admin)"
-          >
-            <CloudArrowDownIcon className={`h-4 w-4 ${seeding ? 'animate-bounce' : ''}`} />
-            {seeding ? 'Generando…' : 'Poblar demo'}
-          </button>
+          {/* Seed button — solo administradores */}
+          {isAdmin && (
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="flex items-center gap-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 px-3 py-2 text-sm text-white transition disabled:opacity-50 border border-indigo-500"
+              title="Generar datos simulados de demostración"
+            >
+              <CloudArrowDownIcon className={`h-4 w-4 ${seeding ? 'animate-bounce' : ''}`} />
+              {seeding ? 'Generando…' : 'Generar datos de prueba'}
+            </button>
+          )}
 
           {/* Export buttons */}
           {hasData && (
@@ -304,8 +320,20 @@ export default function HistorialPanel() {
 
       {/* Seed message */}
       {seedMessage && (
-        <div className="rounded-xl bg-slate-800/60 border border-slate-700 px-4 py-3 text-sm text-slate-300">
-          {seedMessage}
+        <div
+          role={seedMessage.type === 'error' ? 'alert' : 'status'}
+          className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
+            seedMessage.type === 'success'
+              ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-300'
+              : seedMessage.type === 'warning'
+                ? 'bg-amber-900/30 border-amber-700/50 text-amber-300'
+                : 'bg-red-900/30 border-red-700/50 text-red-300'
+          }`}
+        >
+          {seedMessage.type === 'success' && <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />}
+          {seedMessage.type === 'warning' && <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />}
+          {seedMessage.type === 'error' && <XCircleIcon className="h-5 w-5 flex-shrink-0" />}
+          <span>{seedMessage.text}</span>
         </div>
       )}
 
@@ -342,7 +370,9 @@ export default function HistorialPanel() {
           <ChartBarIcon className="h-12 w-12 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400 font-medium">Sin datos históricos</p>
           <p className="text-sm text-slate-500 mt-1 mb-4">
-            El sistema aún no ha acumulado lecturas. Haz clic en "Poblar demo" para generar datos simulados.
+            {isAdmin
+              ? 'El sistema aún no ha acumulado lecturas. Use «Generar datos de prueba» para poblar la serie histórica.'
+              : 'El sistema aún no ha acumulado lecturas para el período seleccionado.'}
           </p>
         </div>
       )}
@@ -354,8 +384,8 @@ export default function HistorialPanel() {
           <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-6">
             <h3 className="text-sm font-semibold text-slate-300 mb-4">
               {viewMode === 'daily'
-                ? 'Producción y Consumo diarios (kWh)'
-                : 'Producción y Consumo por hora (kW)'}
+                ? 'Producción y consumo diarios (kWh)'
+                : 'Producción y consumo por hora (kW)'}
             </h3>
             <ResponsiveContainer width="100%" height={280}>
               {viewMode === 'daily' ? (

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { ConsumptionProfile } from '@/types';
-import { executeQuery } from '@/lib/graphql-client';
+import { executeMutation } from '@/lib/graphql-client';
 import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,7 @@ type PresetKey = 'universidad' | 'residencial' | 'comercial' | 'industrial';
 
 const PRESETS: Record<PresetKey, { label: string; description: string; weekday: number[]; weekend: number[] }> = {
   universidad: {
-    label: 'Microgrid universitaria',
+    label: 'Microrred universitaria',
     description: 'Picos en horario docente (8-17 h), mínimo nocturno.',
     weekday: [8,7,6.5,6,6,7,12,22,28,30,28,26,25,27,26,24,22,25,28,26,22,18,14,10],
     weekend: [7,6.5,6,5.5,5.5,6.5,10,14,18,20,20,19,18,19,18,17,17,20,22,20,17,14,11,8],
@@ -124,7 +124,7 @@ export default function ConsumptionProfileConfig({
     setSaving(true);
     setSaveStatus('idle');
     try {
-      await executeQuery(SAVE_MUTATION, { weekday, weekend, name });
+      await executeMutation(SAVE_MUTATION, { weekday, weekend, name });
       setSaveStatus('ok');
       onSaved?.({
         name,

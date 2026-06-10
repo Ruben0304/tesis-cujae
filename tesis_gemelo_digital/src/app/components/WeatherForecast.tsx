@@ -34,7 +34,7 @@ export default function WeatherForecast({ weather }: WeatherForecastProps) {
     <div className="h-full flex flex-col bg-white/30 backdrop-blur-md rounded-3xl p-5">
       {/* Header */}
       <div className="mb-4">
-        <h3 className="text-base font-bold text-gray-900">Pronóstico Extendido</h3>
+        <h3 className="text-base font-bold text-gray-900">Pronóstico extendido</h3>
         <p className="text-[10px] text-gray-500 mt-0.5">Próximos 5 días</p>
       </div>
 

@@ -337,7 +337,7 @@ const createInterfaceMockPayload = () => {
         summary: 'Parcialmente nublado',
       },
       alerts: [
-        { code: 'UV_MED', description: 'Indice UV moderado' },
+        { code: 'UV_MED', description: 'Índice UV moderado' },
         { code: 'BREEZE', description: 'Brisa ligera' },
       ],
     },
@@ -483,7 +483,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
         setMapping(nextMapping);
         setStatus({
           type: 'success',
-          text: 'Mock local generado en interfaz. No se hizo ninguna llamada al backend.',
+          text: 'Se generó una respuesta de ejemplo local (sin llamadas a servicios externos).',
         });
         return;
       }
@@ -730,7 +730,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
                 <option value="bearer">Bearer token</option>
                 <option value="api_key_header">API key por header</option>
                 <option value="api_key_query">API key por query</option>
-                <option value="mock">Mock local</option>
+                <option value="mock">Datos de ejemplo</option>
               </select>
             </div>
             <div>
@@ -818,7 +818,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
               className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <CloudSun className="h-4 w-4" />
-              {testing ? 'Probando...' : 'Test autenticado'}
+              {testing ? 'Probando…' : 'Probar conexión'}
             </button>
             <button
               type="button"
@@ -827,7 +827,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
               className="inline-flex items-center gap-2 rounded-full border border-fuchsia-200 bg-fuchsia-50 px-4 py-2 text-sm font-semibold text-fuchsia-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <WandSparkles className="h-4 w-4" />
-              Probar modo mock
+              Probar con datos de ejemplo
             </button>
           </div>
         </div>
@@ -937,7 +937,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
                 <div>
                   <p className="font-semibold text-slate-800">{source.name}</p>
                   <p className="text-xs text-slate-500">
-                    {source.baseUrl || 'Modo mock'} · {source.authType}
+                    {source.baseUrl || 'Datos de ejemplo'} · {source.authType}
                     {source.isActive ? ' · Activa' : ''}
                   </p>
                 </div>

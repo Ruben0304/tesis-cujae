@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   MapPinIcon,
+  MapIcon,
   ArrowPathIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
@@ -145,11 +146,11 @@ export default function LocationConfig() {
       const saved = data?.saveLocationConfig;
       if (saved) {
         setCurrent(saved);
-        setStatus({ type: 'ok', msg: `Ubicación guardada: ${saved.name} (${saved.lat}, ${saved.lon})` });
+        setStatus({ type: 'ok', msg: `Ubicación guardada: ${saved.name}.` });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar la ubicación.';
-      setStatus({ type: 'error', msg: msg.includes('denegado') ? '⛔ Acceso denegado. Se requieren permisos de administrador.' : msg });
+      setStatus({ type: 'error', msg: msg.includes('denegado') ? 'Acceso denegado. Se requieren permisos de administrador.' : msg });
     }
   };
 
@@ -167,7 +168,7 @@ export default function LocationConfig() {
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <MapPinIcon className="h-6 w-6 text-rose-400" />
-          Ubicación del Sistema
+          Ubicación del sistema
         </h2>
         <p className="text-sm text-slate-400 mt-1">
           Define las coordenadas geográficas de la instalación. Se usan para cálculos solares y datos meteorológicos.
@@ -181,7 +182,7 @@ export default function LocationConfig() {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white truncate">{current.name}</p>
             <p className="text-xs text-slate-400 font-mono">
-              {current.lat}°N · {current.lon}°E
+              {Math.abs(current.lat).toFixed(4)}°{current.lat >= 0 ? 'N' : 'S'} · {Math.abs(current.lon).toFixed(4)}°{current.lon >= 0 ? 'E' : 'O'}
               {current.updatedAt && (
                 <span className="ml-2 text-slate-500">
                   — actualizado {new Date(current.updatedAt).toLocaleString('es-CU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -313,10 +314,11 @@ export default function LocationConfig() {
             <button
               type="button"
               onClick={openMapPicker}
-              className="rounded-xl border border-slate-600 bg-slate-700 hover:bg-slate-600 px-4 py-3 text-sm text-slate-300 transition"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-700 hover:bg-slate-600 px-4 py-3 text-sm text-slate-300 transition"
               title="Ver en OpenStreetMap"
             >
-              🗺 Ver mapa
+              <MapIcon className="h-4 w-4" />
+              Ver mapa
             </button>
           </div>
         </form>

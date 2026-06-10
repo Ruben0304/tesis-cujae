@@ -485,7 +485,7 @@ export default function AppliancesManager({
                         {!!appliance.measurementMeta && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
                             <LineChart className="h-3 w-3" />
-                            Pronóstico por archivo
+                            Perfil medido (archivo)
                             {appliance.measurementMeta?.avgKw
                               ? ` • ${appliance.measurementMeta.avgKw.toFixed(2)} kW prom.`
                               : ''}
@@ -760,7 +760,7 @@ export default function AppliancesManager({
                   <div className="mb-3 flex items-center gap-2">
                     <FileSpreadsheet className="h-4 w-4 text-sky-700" />
                     <h4 className="text-sm font-semibold text-sky-900">
-                      Pronóstico avanzado por archivo de mediciones
+                      Perfil de consumo a partir de un archivo de mediciones
                     </h4>
                   </div>
                   <p className="mb-3 text-xs leading-relaxed text-sky-900/80">

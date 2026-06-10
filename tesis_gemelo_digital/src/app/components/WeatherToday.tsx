@@ -13,7 +13,6 @@ interface WeatherTodayProps {
 
 export default function WeatherToday({ weather, onWeatherOverride }: WeatherTodayProps) {
   const [showModal, setShowModal] = useState(false);
-  const [showSandbox, setShowSandbox] = useState(false);
   const { temperature, solarRadiation, cloudCover, humidity, windSpeed } = weather;
   const locationLabel = weather.locationName ?? 'Ubicación';
 
@@ -28,20 +27,16 @@ export default function WeatherToday({ weather, onWeatherOverride }: WeatherToda
 
   // Determinar qué animación usar según el clima actual
   const getLottieAnimation = (): LottieAnimationType => {
-    // Solo basarse en la nubosidad, NO detectar noche automáticamente
-    // La noche solo se activa manualmente desde el sandbox de test
+    // Basado en la nubosidad reportada por la fuente meteorológica
     if (cloudCover < 20) return 'sunny';
     if (cloudCover < 50) return 'partly-cloudy';
     if (cloudCover < 80) return 'cloudy';
     return 'rainy';
   };
 
-  const autoAnimation = getLottieAnimation();
-  // Permitir override manual desde el sandbox
-  const [manualOverride, setManualOverride] = useState<LottieAnimationType | null>(null);
-  const currentAnimation = manualOverride ?? autoAnimation;
+  const currentAnimation = getLottieAnimation();
 
-  // Resetear el override al montar el componente para que siempre inicie con el modo automático
+  // El fondo del panel principal sigue siempre la condición detectada automáticamente
   useEffect(() => {
     onWeatherOverride?.(null);
   }, []); // Solo se ejecuta al montar
@@ -105,19 +100,10 @@ export default function WeatherToday({ weather, onWeatherOverride }: WeatherToda
         {/* Header */}
         <div className="mb-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-gray-900">Clima Actual</h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSandbox(!showSandbox)}
-                className="text-[10px] text-purple-600 font-medium bg-purple-100/50 px-2 py-0.5 rounded-full hover:bg-purple-200/50 transition-colors"
-                title="Probar animaciones"
-              >
-                🎨 Test
-              </button>
-              <span className="text-[10px] text-sky-600 font-medium bg-sky-100/50 px-2 py-0.5 rounded-full">
-                {locationLabel}
-              </span>
-            </div>
+            <h3 className="text-base font-bold text-gray-900">Clima actual</h3>
+            <span className="text-[10px] text-sky-600 font-medium bg-sky-100/50 px-2 py-0.5 rounded-full">
+              {locationLabel}
+            </span>
           </div>
         </div>
 
@@ -158,63 +144,6 @@ export default function WeatherToday({ weather, onWeatherOverride }: WeatherToda
           </div>
         </div>
 
-        {/* Sandbox para probar animaciones */}
-        {showSandbox && (
-          <div className="mb-4 p-4 bg-purple-50/50 backdrop-blur-sm rounded-2xl border-2 border-purple-200">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-semibold text-purple-900">
-                🎨 Sandbox - Probar Animaciones
-              </div>
-              {manualOverride && (
-                <button
-                  onClick={() => {
-                    setManualOverride(null);
-                    onWeatherOverride?.(null);
-                  }}
-                  className="text-[10px] px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
-                >
-                  Restaurar Auto
-                </button>
-              )}
-            </div>
-            <div className="mb-3 text-[10px] text-purple-700 bg-purple-100/50 rounded-lg p-2">
-              <strong>Modo actual:</strong> {manualOverride ? 'Manual' : 'Automático'} |
-              <strong> Detectado:</strong> {autoAnimation} (Nubosidad: {cloudCover}%)
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {(['sunny', 'partly-cloudy', 'cloudy', 'rainy', 'night'] as LottieAnimationType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setManualOverride(type);
-                    onWeatherOverride?.(type);
-                  }}
-                  className={`p-3 rounded-lg transition-all ${currentAnimation === type
-                    ? 'bg-purple-500 ring-2 ring-purple-600 shadow-lg scale-105'
-                    : 'bg-white/50 hover:bg-white/80 hover:scale-105'
-                    }`}
-                  title={type}
-                >
-                  <div className="text-lg text-center">
-                    {type === 'sunny' && '☀️'}
-                    {type === 'partly-cloudy' && '⛅'}
-                    {type === 'cloudy' && '☁️'}
-                    {type === 'rainy' && '🌧️'}
-                    {type === 'night' && '🌙'}
-                  </div>
-                  <div className="text-[8px] text-center mt-1 text-gray-600">
-                    {type === 'sunny' && 'Sol'}
-                    {type === 'partly-cloudy' && 'Parcial'}
-                    {type === 'cloudy' && 'Nublado'}
-                    {type === 'rainy' && 'Lluvia'}
-                    {type === 'night' && 'Noche'}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Resumen rápido */}
         {weather.forecast && weather.forecast.length > 0 && (
           <div className="flex items-center justify-around text-center">
@@ -240,7 +169,7 @@ export default function WeatherToday({ weather, onWeatherOverride }: WeatherToda
           <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {/* Header del modal */}
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Detalles del Clima</h3>
+              <h3 className="text-xl font-bold text-gray-900">Detalles del clima</h3>
               <button
                 onClick={() => setShowModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-full transition-all duration-200"
@@ -282,7 +211,7 @@ export default function WeatherToday({ weather, onWeatherOverride }: WeatherToda
               <div className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl">
                 <div className="flex items-center gap-2 mb-2">
                   <Gauge className="w-5 h-5 text-orange-500" />
-                  <span className="text-xs text-gray-600">Radiación Solar</span>
+                  <span className="text-xs text-gray-600">Radiación solar</span>
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{solarRadiation}</div>
                 <div className="text-xs text-gray-500">W/m²</div>

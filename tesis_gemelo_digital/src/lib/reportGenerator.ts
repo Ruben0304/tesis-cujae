@@ -38,7 +38,9 @@ function buildCsv(headers: string[], rows: unknown[][]): string {
 }
 
 function downloadFile(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
+  // BOM UTF-8 para que Excel (Windows) interprete bien los acentos y símbolos (CO₂, Batería…).
+  const payload = mime.includes('csv') ? '﻿' + content : content;
+  const blob = new Blob([payload], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

@@ -382,7 +382,7 @@ export default function DevicesView({
       {
         id: 'clima' as const,
         title: 'Fuente de clima',
-        subtitle: 'Enlace visual de APIs meteorológicas.',
+        subtitle: 'Configuración de la fuente meteorológica.',
         count: 'Configuración avanzada',
         icon: <Info className="h-5 w-5 text-fuchsia-600" />,
       },
@@ -750,7 +750,8 @@ export default function DevicesView({
       const formData = new FormData();
       formData.append('file', selectedImage);
 
-      const response = await fetch('http://localhost:8000/api/classify-panel', {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8001';
+      const response = await fetch(`${apiBase}/api/classify-panel`, {
         method: 'POST',
         body: formData,
       });
@@ -793,8 +794,7 @@ export default function DevicesView({
           <header className="mb-5">
             <h2 className="text-xl font-semibold text-slate-900">Ajustes</h2>
             <p className="text-sm text-slate-500">
-              Seleccione una sección para administrar su configuración sin navegar en una vista
-              larga.
+              Seleccione una sección para administrar cada parte de la configuración.
             </p>
           </header>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -916,7 +916,7 @@ export default function DevicesView({
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${statusToneClasses.success}`}
                     >
-                      Operativo
+                      Registrado
                     </span>
                   </header>
 
@@ -1049,7 +1049,7 @@ export default function DevicesView({
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${statusToneClasses.success}`}
                     >
-                      Disponible
+                      Registrada
                     </span>
                   </header>
 
@@ -1183,7 +1183,7 @@ export default function DevicesView({
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${statusToneClasses.success}`}
                     >
-                      Activo
+                      Registrado
                     </span>
                   </header>
 
@@ -1392,7 +1392,7 @@ export default function DevicesView({
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                 />
               </Field>
-              <Field label="Capacidad (kW)" required>
+              <Field label="Capacidad por módulo (kWh)" required>
                 <input
                   type="number"
                   min="0"
@@ -1728,8 +1728,8 @@ export default function DevicesView({
                         }`}
                       >
                         {cleanlinessResult.clasificacion === 'limpio'
-                          ? 'Panel Limpio'
-                          : 'Panel con Suciedad'}
+                          ? 'Panel limpio'
+                          : 'Panel con suciedad'}
                       </p>
                       <p className="text-xs text-slate-600">Análisis completado</p>
                     </div>

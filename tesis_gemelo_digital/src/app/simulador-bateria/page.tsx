@@ -363,7 +363,7 @@ export default function SimuladorBateriaPage() {
               >
                 <div className="space-y-4">
                   <Slider
-                    label="Apagar equipos"
+                    label="Reducción de consumo"
                     value={consumptionReduction}
                     onChange={setConsumptionReduction}
                     min={0} max={50} step={5}

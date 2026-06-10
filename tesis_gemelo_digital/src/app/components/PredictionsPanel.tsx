@@ -10,8 +10,7 @@ import {
   BlackoutSchedule,
   ConsumptionPrediction,
 } from '@/types';
-import { Power, Info, BrainCircuit, LineChart, ChevronDown, ChevronUp } from 'lucide-react';
-import { DEFAULT_SYSTEM_CONFIG } from '@/lib/systemDefaults';
+import { Power, Info, BrainCircuit, LineChart, ChevronDown, ChevronUp, AlertTriangle, AlertOctagon, Lightbulb } from 'lucide-react';
 
 interface PredictionsPanelProps {
   predictions: Prediction[];
@@ -81,8 +80,16 @@ function formatTime(d: Date) {
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+const ALERT_STYLES = {
+  critical: { box: 'border-red-200 bg-red-50', text: 'text-red-700', icon: AlertOctagon },
+  warning: { box: 'border-amber-200 bg-amber-50', text: 'text-amber-700', icon: AlertTriangle },
+  info: { box: 'border-sky-200 bg-sky-50', text: 'text-sky-700', icon: Info },
+} as const;
+
 export default function PredictionsPanel({
   predictions,
+  alerts = [],
+  recommendations = [],
   blackouts = [],
   consumptionPredictions = [],
   solarModelR2,
@@ -184,7 +191,7 @@ export default function PredictionsPanel({
                     tooltip={
                       <>
                         <span className="font-semibold block mb-1">Perfil configurado por el usuario</span>
-                        Fase 1 — sin datos históricos suficientes el sistema usa el perfil horario que tú definiste.{'\n\n'}
+                        Cuando no hay suficiente histórico, el sistema usa el perfil horario de consumo que usted configuró.{'\n\n'}
                         Base: 70% — estimación manual con variabilidad real ±15-25%.{'\n'}
                         −8 pp horas nocturnas (0-5 h): uso irregular.{'\n'}
                         −5 pp horas de transición (7-9, 17-20 h): llegada/salida.{'\n'}
@@ -226,7 +233,7 @@ export default function PredictionsPanel({
             </div>
             <div className="space-y-1.5">
               <p className="font-semibold text-gray-800 flex items-center gap-1.5">
-                <LineChart className="w-3.5 h-3.5 text-blue-500" /> Consumo — Perfil configurado (Fase 1)
+                <LineChart className="w-3.5 h-3.5 text-blue-500" /> Consumo — perfil configurado por el usuario
               </p>
               <p>No requiere datos históricos. El usuario define el consumo típico por hora.</p>
               <p>Confianza base: <span className="font-semibold">70%</span> (estimación manual ±15-25%).</p>
@@ -242,6 +249,47 @@ export default function PredictionsPanel({
           </div>
         )}
       </div>
+
+      {/* ── Alertas del sistema ──────────────────────────────────────────── */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert) => {
+            const style = ALERT_STYLES[alert.type] ?? ALERT_STYLES.info;
+            const Icon = style.icon;
+            return (
+              <div
+                key={alert.id}
+                role={alert.type === 'critical' ? 'alert' : 'status'}
+                className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${style.box}`}
+              >
+                <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${style.text}`} />
+                <div>
+                  <p className={`text-sm font-semibold ${style.text}`}>{alert.title}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{alert.message}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Recomendaciones ──────────────────────────────────────────────── */}
+      {recommendations.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-semibold text-gray-900">Recomendaciones operativas</h3>
+          </div>
+          <ul className="space-y-2">
+            {recommendations.map((rec, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                {rec}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── Blackout schedule ────────────────────────────────────────────── */}
       {blackoutEntries.length > 0 && (

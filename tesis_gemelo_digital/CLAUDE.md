@@ -4,385 +4,140 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Digital Twin system for a photovoltaic (solar) microgrid with real-time monitoring, intelligent predictions, and blackout scenario analysis. Built with Next.js 15, React 19, MongoDB, and TypeScript.
+Digital Twin ("Gemelo Digital") of a photovoltaic (solar) microgrid: real-time monitoring,
+ML-based predictions, blackout-scenario analysis, battery/shadow simulators and reporting.
 
-**System Specifications:**
-- 50 kW solar capacity (configurable via database)
-- 100 kWh battery storage (configurable)
-- Location: La Habana, Cuba (23.1136, -82.3666)
-- Real-time weather integration via Open-Meteo API
+**System under study:**
+- 50 kW solar capacity, 100 kWh battery storage (both configurable from the database).
+- Location: La Habana, Cuba (23.1136, -82.3666).
+- Weather via Open-Meteo (and other configurable sources) — handled **by the backend**.
 
-## Development Commands
+## Architecture (IMPORTANT — read this first)
+
+The system is **two separate apps** in this repo:
+
+```
+Next.js frontend (browser)  ──GraphQL──▶  FastAPI backend (Python)  ──pymongo──▶  MongoDB
+       src/                  (urql HTTP)        backend/                            local
+```
+
+- **The frontend NEVER talks to MongoDB directly.** There are no `/api` routes in Next and no
+  database driver in the client. All data flows through GraphQL to the FastAPI backend, which is
+  the only layer that touches Mongo.
+- The frontend's GraphQL client is `src/lib/graphql-client.ts` (urql). It reads the endpoint from
+  `NEXT_PUBLIC_GRAPHQL_URL` and attaches the JWT as a `Bearer` header on every request.
+- Historical note: an older version had `src/lib/*Service.ts` + `db.ts` that used Mongo directly.
+  Those were **deleted** — do not reintroduce direct DB access in the frontend.
+
+### Ports & run commands
+
+The backend runs on **port 8001** (port 8000 is used by another local project on this machine).
 
 ```bash
-# Development server (hot reload)
-npm run dev
+# MongoDB (already autostarts via brew: mongodb-community on :27017)
 
-# Production build
-npm run build
+# Backend — needs Python ≥3.10; a venv with python@3.12 lives in backend/venv
+cd backend
+./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+# health check: curl localhost:8001/health  → {"status":"healthy","database":"connected"}
 
-# Production server (after build)
-npm start
+# Frontend
+npm install
+npm run dev          # http://localhost:3000
+npm run build        # production build
+npm test             # vitest (unit tests for calculations/predictions)
 ```
 
-**Environment Variables Required:**
-- `MONGODB_URI` - MongoDB connection string (default: `mongodb://localhost:27017/GemeloDigitalCujai`)
-- `MONGODB_DB` - Database name (default: `GemeloDigitalCujai`)
-- `OPENWEATHER_API_KEY` - Currently using Open-Meteo (free, no key needed), this is legacy
-
-**Development Server:** http://localhost:3000
-
-## Architecture Overview
-
-### Three-Layer Architecture
-
-1. **API Routes** (`src/app/api/`) - Next.js server-side endpoints
-2. **Service Layer** (`src/lib/*Service.ts`) - Business logic and database operations
-3. **Components** (`src/app/components/`) - React UI with local state
-
-### Data Flow Pattern
-
-```
-Component (useEffect) → fetch(/api/endpoint) → API Route → Service Layer → MongoDB
-                                              ↓
-                                        Calculation Libraries
-                                      (predictions, calculations)
-```
-
-**No state management library** - Uses React hooks (`useState`, `useEffect`) exclusively. The Dashboard component orchestrates all data fetching and passes props down to child components.
-
-### Key API Endpoints
-
-- `GET /api/solar` - Returns current solar data, 24h timeline, battery status, metrics, energy flow
-- `GET /api/weather` - Fetches real-time weather from Open-Meteo API with fallback to mock data
-- `GET /api/predictions` - Generates 24-hour predictions with blackout adjustments and alerts
-- `GET/POST /api/paneles` - Solar panel configuration management
-- `GET/POST /api/baterias` - Battery configuration management
-- `GET/POST /api/blackouts` - Blackout schedule management
-- `POST /api/auth/login` - User authentication
-- `POST /api/auth/register` - User registration
-
-All API routes use `export const dynamic = 'force-dynamic'` to prevent caching and ensure fresh data.
-
-## MongoDB Collections
-
-**Database:** `GemeloDigitalCujai`
-
-### usuarios (Users)
-```typescript
-{
-  email: string,           // unique, lowercase
-  name?: string,
-  role: 'admin' | 'user',
-  passwordHash: string,    // scrypt with salt
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### paneles (Solar Panel Configurations)
-```typescript
-{
-  name: string,
-  manufacturer?: string,
-  model?: string,
-  ratedPowerKw: number,    // Power per panel
-  quantity: number,         // Number of panels
-  strings: number,
-  efficiencyPercent?: number,
-  areaM2?: number,
-  tiltDegrees?: number,
-  orientation?: string,
-  notes?: string,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### baterias (Battery Configurations)
-```typescript
-{
-  name: string,
-  manufacturer?: string,
-  model?: string,
-  capacityKwh: number,     // Capacity per battery
-  quantity: number,         // Number of batteries
-  maxDepthOfDischargePercent?: number,
-  chargeRateKw?: number,
-  dischargeRateKw?: number,
-  efficiencyPercent?: number,
-  chemistry?: string,       // e.g., 'LiFePO4'
-  nominalVoltage?: number,
-  notes?: string,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### apagones (Blackout Schedules)
-```typescript
-{
-  date: Date,              // Start of day
-  intervals: [{
-    start: Date,           // ISO datetime
-    end: Date,
-    durationMinutes: number
-  }],
-  province?: string,
-  municipality?: string,
-  notes?: string,
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-**Connection Management:** Use `getDb()` from `src/lib/db.ts` for database operations. Connection pooling is handled automatically with development-specific global caching to prevent hot-reload connection leaks.
-
-## Core Business Logic
-
-### System Configuration (`src/lib/systemConfig.ts`)
-
-`getSystemConfig()` aggregates total capacity from all panels and batteries in the database. Falls back to `DEFAULT_SYSTEM_CONFIG` if database is unavailable.
-
-**Total capacity calculation:**
-- Solar: Sum of `ratedPowerKw × quantity` from all panels
-- Battery: Sum of `capacityKwh × quantity` from all batteries
-- Uses first panel/battery specs as system-wide defaults
-
-### Solar Production Algorithm (`src/lib/calculations.ts`)
-
-**Theoretical Production:**
-```typescript
-Power = (SolarRadiation_W/m² × PanelArea_m² × Efficiency) / 1000
-```
-
-**Actual Production** (includes corrections):
-- Temperature coefficient: -0.4% per °C above 25°C
-- Age degradation: -0.5% per year
-- Cloud cover penalty: Up to -50% at 100% cloud cover
-- Time-of-day factor: Gaussian curve centered at 13:00 (sigma=3.5)
-
-**Efficiency Calculation:**
-```typescript
-Efficiency = (ActualProduction / TheoreticalProduction) × 100
-```
-
-### Prediction Engine (`src/lib/predictions.ts`)
-
-**Hourly Predictions:**
-```typescript
-Production = SolarRadiation × PanelArea × Efficiency × TimeOfDayFactor × CloudFactor
-Confidence = BaseConfidence × (1 - CloudCover/200)
-```
-
-**Blackout Adjustments:**
-- Consumption reduced by 60% during blackouts (loadFactor = 0.6)
-- Production reduced by 15% during blackouts (productionFactor = 0.85)
-- Confidence reduced by 12% if blackout overlap
-
-**Alert Generation Rules:**
-- Critical: Battery < 20%
-- Warning: Battery < 40% or production deficit > 50%
-- Info: Weather-based alerts (storms, low radiation)
-
-### Energy Flow Calculation (`src/lib/calculations.ts`)
-
-Distributes energy among five flows:
-1. **solarToLoad** - Direct solar to consumption
-2. **solarToBattery** - Charging battery from solar
-3. **solarToGrid** - Exporting excess to grid
-4. **batteryToLoad** - Discharging battery to meet demand
-5. **gridToLoad** - Importing from grid when needed
-
-**Priority Logic:**
-1. Solar covers load first
-2. Surplus charges battery
-3. If battery full, export to grid
-4. Deficit covered by battery, then grid
-
-### Battery Strategy (`src/lib/calculations.ts`)
-
-`calculateBatteryStrategy()` determines charge/discharge action:
-- **Charge:** Surplus production AND battery < 95%
-- **Discharge:** Production deficit AND battery > 20%
-- **Hold:** Otherwise
-
-## Component Architecture
-
-### Main Components
-
-**Dashboard.tsx** - Central orchestrator
-- Manages all application state (solar, weather, predictions, configs)
-- Fetches data from all APIs via `useEffect`
-- Handles section navigation (overview/stats/devices)
-- Passes data down to child components via props
-
-**AuthGate.tsx** - Authentication wrapper
-- Login/registration forms
-- Session persistence via localStorage (`SESSION_KEY = 'gd_auth_user'`)
-- Displays feature cards when not authenticated
-
-**Key Child Components:**
-- `MetricsCards` - 4 KPI cards (production, consumption, daily totals, efficiency)
-- `SolarProductionChart` - Recharts line chart showing 24h production timeline
-- `BatteryStatus` - Circular progress indicator with autonomy hours
-- `FlujoEnergia` - Sankey-style energy flow diagram
-- `PredictionsPanel` - Hourly predictions table with alerts and recommendations
-- `WeatherToday` + `WeatherForecast` - Current and 7-day weather display
-- `SolarStatsView` - Detailed analytics (performance ratio, ROI)
-- `DevicesView` - CRUD interfaces for panels, batteries, and blackout schedules
-
-### Component Communication
-
-**No Context API or Redux** - All data flows through props from Dashboard:
-```typescript
-<BatteryStatus
-  battery={solarData?.battery}
-  consumption={solarData?.current.consumption}
-/>
-```
-
-## Type Definitions
-
-All interfaces are in `src/types/index.ts`. Key types:
-
-- `SolarData` - Production, consumption, battery level at a point in time
-- `WeatherData` - Current weather + 7-day forecast with solar radiation
-- `BatteryStatus` - Charge level, capacity, autonomy, power flow
-- `Prediction` - Hourly forecast with confidence and blackout impact
-- `SystemConfig` - Solar/battery specs, location coordinates
-- `EnergyFlow` - Power distribution across five pathways
-- `BlackoutSchedule` - Date with multiple time intervals
-- `Alert` - Severity (critical/warning/info), message, type
-
-## Authentication System
-
-**Password Security:**
-- Uses Node.js `crypto.scryptSync` (not bcrypt)
-- Salt: 16 random bytes
-- Hash format: `salt:derivedKey` (hex)
-- Timing-safe comparison with `timingSafeEqual`
-
-**Session Management:**
-- Client-side only (localStorage)
-- No JWT tokens or server-side sessions
-- Session key: `gd_auth_user`
-- Logout clears localStorage and component state
-
-**Roles:** `admin` | `user` (stored but not enforced on backend)
-
-## Path Aliases
-
-TypeScript paths configured in `tsconfig.json`:
-```typescript
-import { getDb } from '@/lib/db'
-import type { SolarData } from '@/types'
-```
-
-`@/*` maps to `./src/*`
-
-## Weather Integration
-
-**Open-Meteo API** (free, no authentication):
-- Endpoint: `https://api.open-meteo.com/v1/forecast`
-- Data: Temperature, humidity, cloud cover, solar radiation, wind
-- 7-day forecast with hourly resolution
-- Fallback to mock data if API unavailable
-
-**Mock Data Generation** (`src/lib/mockData.ts`):
-- Gaussian solar production curve (peak at 13:00)
-- Realistic consumption patterns (35kW day, 18kW night)
-- Weather scenarios: sunny, partly-cloudy, cloudy, rainy
-
-## Adding New Features
-
-### New API Endpoint
-1. Create `src/app/api/[resource]/route.ts`
-2. Export `GET`, `POST`, `PUT`, or `DELETE` async functions
-3. Add `export const dynamic = 'force-dynamic'`
-4. Use service layer for database operations
-
-### New Database Collection
-1. Create `src/lib/[resource]Service.ts` with CRUD functions
-2. Add type definition to `src/types/index.ts`
-3. Use `getDb()` from `@/lib/db` for collection access
-4. Always set `createdAt` and `updatedAt` timestamps
-
-### New Component
-1. Create functional component in `src/app/components/[Name].tsx`
-2. Define props interface
-3. Import in Dashboard and add to appropriate section
-4. Use Tailwind CSS for styling (dark theme: bg-slate-900/800/700)
-
-## Performance Considerations
-
-- All calculations use `useMemo` when expensive (e.g., energy flow in Dashboard)
-- Charts are rendered client-side with Recharts
-- API routes execute server-side, avoiding client bundle bloat
-- MongoDB queries use indexes on frequently queried fields (email, date)
-
-## Common Patterns
-
-**Date Handling:**
-- Store as `Date` objects in MongoDB
-- Convert to ISO strings for JSON serialization
-- Use `date-fns` for formatting in UI
-
-**Error Handling:**
-```typescript
-try {
-  // Operation
-  return NextResponse.json(data, { status: 200 })
-} catch (error) {
-  console.error('Context:', error)
-  return NextResponse.json(
-    { error: 'User-friendly message' },
-    { status: 500 }
-  )
-}
-```
-
-**Validation:**
-- Input validation in service layer before database operations
-- Type safety enforced by TypeScript
-- Form validation in components before API calls
-
-## Key Calculations Reference
-
-**CO₂ Avoided:** `dailyProduction_kWh × 0.5 kg/kWh`
-
-**Battery Autonomy:** `currentEnergy_kWh / currentConsumption_kW` (hours)
-
-**Performance Ratio (PR):** `(actualProduction / theoreticalProduction) × 100` (industry standard)
-
-**Energy Balance:** `production_kW - consumption_kW` (positive = surplus, negative = deficit)
-
-## File Organization
-
-```
-src/
-├── app/
-│   ├── api/              # Next.js API routes (server-side)
-│   ├── components/       # React components (client-side)
-│   ├── layout.tsx        # Root layout with metadata
-│   ├── page.tsx          # Homepage (AuthGate + Dashboard)
-│   └── globals.css       # Tailwind styles
-├── lib/                  # Business logic and utilities
-│   ├── *Service.ts       # Database CRUD operations
-│   ├── calculations.ts   # Energy and efficiency calculations
-│   ├── predictions.ts    # Forecast algorithms
-│   ├── systemConfig.ts   # Configuration aggregation
-│   ├── mockData.ts       # Demo data generation
-│   ├── openMeteo.ts      # Weather API integration
-│   └── db.ts             # MongoDB connection
-└── types/
-    └── index.ts          # TypeScript interfaces
-```
-
-## Debugging Tips
-
-- Check browser Network tab for API response payloads
-- MongoDB queries logged to console in development
-- Use React DevTools to inspect component props
-- API routes run server-side, check terminal for logs
-- Mock data always available if database connection fails
+### Environment variables
+
+Frontend (`.env.local`):
+- `NEXT_PUBLIC_GRAPHQL_URL` — GraphQL endpoint (e.g. `http://localhost:8001/graphql`).
+- `NEXT_PUBLIC_API_URL` — backend REST base for non-GraphQL endpoints (panel cleanliness),
+  e.g. `http://localhost:8001`.
+
+Backend (`backend/.env`, all have sensible defaults in `backend/app/config.py`):
+- `MONGODB_URI` (default `mongodb://localhost:27017/GemeloDigitalCujai`), `MONGODB_DB`.
+- `PORT` (8001 here), `CORS_ORIGINS`, `JWT_SECRET`, and optional `LDAP_*`.
+
+The `GemeloDigitalCujai` database and its collections are created lazily on first insert.
+
+## Backend (FastAPI + Strawberry GraphQL)
+
+Located in `backend/`. Entry point `backend/app/main.py` exposes:
+- `POST /graphql` — Strawberry GraphQL router (also GraphiQL in the browser).
+- `POST /api/classify-panel` — REST endpoint, ML image classifier for panel cleanliness.
+- `GET /health`, `GET /`.
+
+**Layout:**
+- `app/schema.py` — all GraphQL types, Query and Mutation resolvers.
+- `app/services/*.py` — business logic + Mongo access (each defines `COLLECTION_NAME` and uses
+  `get_database()` from `app/database.py`).
+- `app/auth.py` — JWT utilities (PyJWT, HS256, 7-day expiry), `context_getter` (extracts the
+  `Bearer` token into the GraphQL context) and `require_admin`.
+- `app/config.py` — `Settings` (env-driven). `app/database.py` — pymongo connection (pooled).
+- `models/` — serialized ML artifacts: `solar_production_random_forest.pkl`,
+  `config_consumo.pkl`, plus the TensorFlow panel classifier.
+
+**GraphQL surface (high level):**
+- Queries: `solar`, `weather`, `predictions`, panel/battery/appliance/inverter/blackout reads,
+  the `mlPredict*` / `mlPredictConsumption*` families, `consumptionProfile` + profile predictions,
+  `users`, `invitationCodes`, `historicalReadings`, `dailySummaries`, `weatherSources`,
+  `activeWeatherSource`, `locationConfig`, `batteryDischargeEstimate`.
+- Mutations: CRUD for panels/batteries/appliances/inverters/blackouts; `registerUser`,
+  `loginUser`, `loginLdap`, `generateInvitationCode`; `saveConsumptionProfile`;
+  `uploadApplianceMeasurement` / `clearApplianceMeasurement`; weather-source mutations.
+
+## Authentication
+
+- JWT issued by the backend on `registerUser` / `loginUser` / `loginLdap`. Payload carries the
+  user `email` and `role` (`admin` | `user`).
+- The frontend stores `{ ...user, token }` in `localStorage` under `gd_auth_user`; urql reads the
+  token fresh on every request and sends `Authorization: Bearer <token>`.
+- Registration requires an **invitation code** (generated by an admin); the code defines the role.
+- Admin-only operations are guarded server-side by `require_admin`.
+- LDAP is optional (`LDAP_ENABLED`); first LDAP login also asks for an invitation code.
+
+## MongoDB collections (database `GemeloDigitalCujai`)
+
+`usuarios`, `paneles`, `baterias`, `inversores`, `electrodomesticos`, `apagones`,
+`lecturas_historicas`, `weather_sources`, `ubicacion_config`, `invitation_codes`,
+`consumption_profiles`. Documents carry `createdAt` / `updatedAt` timestamps.
+
+## Frontend (Next.js 15 / React 19 / Tailwind 4)
+
+`'use client'` components throughout; no global state library — the `Dashboard` orchestrates
+fetching via urql and passes data down through props.
+
+**Routing (`src/app/`):**
+- `page.tsx` — gate: `AuthGate` → (first run) `OnboardingWizard` → `Dashboard`.
+- `ajustes/` — settings hub with subpages: `paneles`, `baterias`, `inversores`,
+  `electrodomesticos`, `consumo`, `clima`, `ubicacion`, `reportes`.
+- `simulador-bateria/` — battery autonomy simulator (page + `BatterySimulatorModal`).
+- `simulador-sombras/` — 3D shadow simulator (react-three-fiber, `Scene.tsx`).
+- `configuracion/page.tsx` — legacy redirect to `?section=devices` (not linked anywhere).
+
+**Key components (`src/app/components/`):** `Dashboard`, `AuthGate`, `OnboardingWizard`,
+`DevicesView` (settings CRUD + panel cleanliness classifier), `AppliancesManager`,
+`WeatherSourceManager`, `AdminPanel`, `SolarProductionChart`, `BatteryStatus`,
+`PredictionsPanel` (confidence + alerts/recommendations + blackouts), `HistorialPanel`,
+`ReporteExport`, weather widgets (`WeatherToday`, `WeatherForecast`, `WeatherWidget`),
+`SystemDiagram`, `LocationConfig`, `MapPicker`, `ConsumptionProfileConfig`, `SolarStatsView`.
+
+**`src/lib/` (only what is actually used):**
+- `graphql-client.ts` — urql client + `executeQuery` / `executeMutation` helpers.
+- `graphql-queries.ts` — shared query/mutation documents.
+- `reportGenerator.ts` — CSV (with UTF-8 BOM) and jsPDF report generation.
+- `shadowCalc.ts` / `sunPosition.ts` — solar-position + shadow sampling for the 3D simulator.
+- `calculations.ts` / `predictions.ts` — TS reference implementations of the energy/forecast
+  math, exercised by the vitest suite in `src/lib/__tests__/`. (The production forecasts come
+  from the backend ML models; these are kept as tested references.)
+- `systemDefaults.ts` — `DEFAULT_SYSTEM_CONFIG` fallback.
+
+## Conventions
+
+- Path alias `@/*` → `./src/*` (`tsconfig.json`).
+- UI language is Spanish; prefer sentence case in Spanish (e.g. "Radiación solar", not
+  "Radiación Solar"). Keep terminology consistent: "predicción"/"estimación" over loose synonyms.
+- Icons: Heroicons and lucide-react are both in use. Dates: `date-fns` with the `es` locale.
+- Charts: Recharts. 3D: three / @react-three/fiber / drei. Maps: react-leaflet.
+- After UI changes, validate with `npx tsc --noEmit` and `npm test`.

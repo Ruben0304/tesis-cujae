@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import AdminPanel from './AdminPanel';
-import MetricsCards from './MetricsCards';
 import SolarProductionChart from './SolarProductionChart';
 import BatteryStatus from './BatteryStatus';
 import WeatherToday, { LottieAnimationType } from './WeatherToday';
@@ -921,10 +920,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                Gemelo Digital - Microrred Solar
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                Gemelo Digital · Microrred Solar
               </h1>
-
+              <p className="text-xs sm:text-sm text-gray-500">
+                50 kW · 100 kWh · La Habana, Cuba
+              </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               {user.role === 'admin' && (

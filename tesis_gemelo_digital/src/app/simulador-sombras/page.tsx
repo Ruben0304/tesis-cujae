@@ -200,7 +200,7 @@ export default function SimuladorSombrasPage() {
                 Sobre el panel se muestrean 81 puntos (grilla 9×9); para cada uno se traza un rayo virtual hacia el sol y
                 se comprueba si algún obstáculo lo intercepta. El porcentaje de puntos bloqueados es el % de sombra,
                 que se traduce directamente en pérdida de producción.
-                Las fórmulas astronómicas son las del modelo NOAA simplificado.
+                Las fórmulas de posición solar se basan en el algoritmo NOAA (versión simplificada).
               </p>
             </div>
           </div>
