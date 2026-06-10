@@ -29,7 +29,7 @@ import {
   EnergyFlow,
   ConsumptionPrediction,
 } from '@/types';
-import { ArrowPathIcon, ExclamationTriangleIcon, WifiIcon, BoltIcon, HomeIcon, Battery50Icon, SunIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ExclamationTriangleIcon, WifiIcon } from '@heroicons/react/24/outline';
 import { executeQuery } from '@/lib/graphql-client';
 import { DEFAULT_SYSTEM_CONFIG } from '@/lib/systemDefaults';
 import { useRouter } from 'next/navigation';
@@ -701,6 +701,20 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     };
   }, [solarData]);
 
+  // Producción FV "ahora" según el modelo ML: la predicción para la hora local
+  // actual. Si no hay predicciones cargadas, cae a la estimación del snapshot.
+  // De noche (fuera del rango diurno de predicción) es 0, como debe ser.
+  const currentSolarProduction = useMemo(() => {
+    if (mlPredictions.length > 0) {
+      const nowHour = new Date().getHours();
+      const match = mlPredictions.find(
+        (p) => new Date(p.timestamp).getHours() === nowHour
+      );
+      return match ? match.production : 0;
+    }
+    return solarData?.current.production ?? 0;
+  }, [mlPredictions, solarData]);
+
   // Fetch ML predictions for a specific day (7am-10pm)
   const fetchMLPredictionsForDay = useCallback(async (dayOffset: number) => {
     setMlLoading(true);
@@ -1029,58 +1043,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-32">
         {activeSection === 'overview' && (
           <>
-            {/* Fila de KPIs principales */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4 mb-2 sm:mb-3">
-              {[
-                {
-                  icon: BoltIcon,
-                  label: 'Producción ahora',
-                  value: `${(solarData.current.production ?? 0).toFixed(1)} kW`,
-                  accent: 'text-emerald-600',
-                  bg: 'bg-emerald-50',
-                },
-                {
-                  icon: HomeIcon,
-                  label: 'Consumo ahora',
-                  value: `${(solarData.current.consumption ?? 0).toFixed(1)} kW`,
-                  accent: 'text-blue-600',
-                  bg: 'bg-blue-50',
-                },
-                {
-                  icon: Battery50Icon,
-                  label: 'Batería',
-                  value: `${Math.round(solarData.battery.chargeLevel ?? 0)} %`,
-                  accent: 'text-purple-600',
-                  bg: 'bg-purple-50',
-                },
-                {
-                  icon: SunIcon,
-                  label: 'Energía hoy',
-                  value: `${(solarData.metrics.dailyProduction ?? 0).toFixed(1)} kWh`,
-                  accent: 'text-amber-600',
-                  bg: 'bg-amber-50',
-                },
-              ].map(({ icon: Icon, label, value, accent, bg }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white/80 backdrop-blur px-4 py-3 shadow-sm"
-                >
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
-                    <Icon className={`h-5 w-5 ${accent}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] sm:text-xs text-gray-500 truncate">{label}</p>
-                    <p className={`text-lg sm:text-xl font-bold ${accent}`}>{value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             {/* Diagrama del sistema y Resumen del Clima */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3 pt-4">
               <div className="lg:col-span-1 lg:pr-4 flex items-center justify-center">
                 <SystemDiagram
-                  solarKw={solarData.current.production}
+                  solarKw={currentSolarProduction}
                   batteryKwh={solarData.config.battery.capacityKwh}
                   consumptionKw={solarData.current.consumption}
                 />
@@ -1130,7 +1097,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
         {activeSection === 'stats' && (
           <SolarStatsView
-            timeline={solarData.historical}
+            timeline={mlPredictions.length > 0 ? mlPredictions : solarData.historical}
             weather={weatherData}
             config={solarData.config}
           />

@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from .blackout_service import get_blackouts_for_range
 from .system_config import get_system_config
 from .weather_service import get_weather_with_fallback
+from .consumption_profile_service import get_active_profile, predict_from_profile
 
 DEFAULT_PANEL_EFFICIENCY = 0.2
 BLACKOUT_LOAD_FACTOR = 0.6
@@ -112,10 +113,12 @@ def predict_production(
 
 
 def _estimate_hourly_solar_radiation(hour: int, daily_avg: float, cloud_cover: float) -> float:
+    # daily_avg es la radiación media en W/m² sobre 24 h (incluye noche). El pico
+    # de mediodía es ~4-5× esa media; el factor reconstruye la curva diaria.
     peak_hour = 13
     sigma = 4
     gaussian = math.exp(-((hour - peak_hour) ** 2) / (2 * sigma**2))
-    radiation = daily_avg * gaussian * 1.8
+    radiation = daily_avg * gaussian * 4.0
     cloud_variability = 1 - (random.random() * cloud_cover / 200)
     radiation *= cloud_variability
     return max(0.0, round(radiation))
@@ -154,6 +157,9 @@ def generate_hourly_predictions(weather_forecast: List[Dict[str, Any]], config: 
     now = datetime.now(ZoneInfo("America/Havana")).replace(tzinfo=None)
     context = _resolve_solar_context(config)
     fallback_forecast = weather_forecast[0] if weather_forecast else None
+    # Consumo desde el perfil horario configurado por el usuario (kW reales del
+    # sistema), no un valor fijo de un sistema de otro tamaño.
+    consumption_profile = get_active_profile()
 
     for hour_offset in range(24):
         timestamp = now + timedelta(hours=hour_offset)
@@ -166,7 +172,7 @@ def generate_hourly_predictions(weather_forecast: List[Dict[str, Any]], config: 
         solar_radiation = _estimate_hourly_solar_radiation(hour, forecast["solarRadiation"], forecast["cloudCover"])
         temperature = _estimate_hourly_temperature(hour, forecast["maxTemp"], forecast["minTemp"])
         production = predict_production(solar_radiation, temperature, forecast["cloudCover"], hour, context)
-        consumption = _predict_consumption(hour)
+        consumption = predict_from_profile(consumption_profile, timestamp)["consumption_kw"]
         confidence = _calculate_prediction_confidence(hour_offset, forecast["cloudCover"])
 
         predictions.append(
@@ -228,7 +234,7 @@ def apply_blackout_adjustments(predictions: List[Dict[str, Any]], blackouts: Lis
 def build_projected_solar_timeline(
     predictions: List[Dict[str, Any]],
     battery_capacity_kwh: float,
-    initial_battery_level: float = 55,
+    initial_battery_level: float = 75,
     blackouts: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     timeline: List[Dict[str, Any]] = []
@@ -310,8 +316,14 @@ def generate_alerts(
     battery_status: Dict[str, Any],
     weather_forecast: List[Dict[str, Any]],
     blackouts: Optional[List[Dict[str, Any]]] = None,
+    capacity_kw: float = 50.0,
 ) -> List[Dict[str, Any]]:
     alerts: List[Dict[str, Any]] = []
+    # Umbrales relativos a la capacidad del sistema (kWh/día y kW), para que no
+    # estén calibrados a un tamaño fijo. (50 kW daba 150/300/10 originalmente.)
+    low_prod_threshold = capacity_kw * 3      # kWh/día
+    high_prod_threshold = capacity_kw * 6     # kWh/día
+    deficit_threshold = capacity_kw * 0.2     # kW
     starting_level = battery_status["chargeLevel"]
     projected_min = battery_status.get("projectedMinLevel", starting_level)
     blackout_windows = _flatten_blackout_windows(blackouts or [])
@@ -338,7 +350,7 @@ def generate_alerts(
         )
 
     tomorrow = weather_forecast[1] if len(weather_forecast) > 1 else None
-    if tomorrow and tomorrow["predictedProduction"] < 150:
+    if tomorrow and tomorrow["predictedProduction"] < low_prod_threshold:
         alerts.append(
             {
                 "id": "low-production-forecast",
@@ -350,7 +362,7 @@ def generate_alerts(
         )
 
     today_forecast = weather_forecast[0] if weather_forecast else None
-    if today_forecast and today_forecast["predictedProduction"] > 350:
+    if today_forecast and today_forecast["predictedProduction"] > high_prod_threshold:
         alerts.append(
             {
                 "id": "high-production-forecast",
@@ -366,7 +378,7 @@ def generate_alerts(
         avg_deficit = sum(max(0.0, p["expectedConsumption"] - p["expectedProduction"]) for p in next_6_hours) / len(
             next_6_hours
         )
-        if avg_deficit > 10 and projected_min < 50:
+        if avg_deficit > deficit_threshold and projected_min < 50:
             alerts.append(
                 {
                     "id": "deficit-warning",
@@ -473,7 +485,7 @@ async def get_predictions_bundle() -> Dict[str, Any]:
     timeline = build_projected_solar_timeline(
         adjusted_predictions,
         config["battery"]["capacityKwh"],
-        55,
+        75,
         blackouts,
     )
     battery_projection = generate_battery_projection(
@@ -486,6 +498,7 @@ async def get_predictions_bundle() -> Dict[str, Any]:
         battery_projection,
         weather_data["forecast"],
         blackouts,
+        config["solar"]["capacityKw"],
     )
     recommendations = generate_recommendations(
         adjusted_predictions,

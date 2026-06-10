@@ -222,13 +222,37 @@ def _validate_profile(values: List[float], label: str) -> None:
         raise ValueError(f"Los valores del perfil '{label}' deben ser ≥ 0.")
 
 
+# Pico de carga por defecto como fracción de la capacidad solar instalada.
+# Mantiene el perfil coherente con el tamaño del sistema (consumo ~ producción)
+# en vez de valores fijos de un sistema de otro tamaño.
+_DEFAULT_PEAK_LOAD_FRACTION = 0.18
+_REFERENCE_PEAK_KW = max(_DEFAULT_WEEKDAY)  # pico de la forma de referencia (30 kW)
+
+
+def _scale_shape(values: List[float], peak_kw: float) -> List[float]:
+    """Escala la forma horaria de referencia a un pico dado (kW)."""
+    return [round(v / _REFERENCE_PEAK_KW * peak_kw, 2) for v in values]
+
+
 def _default_profile_dict() -> Dict[str, Any]:
+    # Escalar el perfil por defecto a la capacidad solar instalada para que el
+    # consumo sea proporcional al sistema (evita déficits irreales en sistemas
+    # pequeños). Si no hay config, usa un sistema de 10 kW como referencia.
+    try:
+        from .system_config import get_system_config
+        capacity_kw = float(get_system_config()["solar"]["capacityKw"])
+    except Exception:
+        capacity_kw = 10.0
+    peak_kw = max(0.5, capacity_kw * _DEFAULT_PEAK_LOAD_FRACTION)
     return {
         "_id": None,
         "name": "Perfil por defecto",
-        "description": "Perfil estimado para microgrid universitaria en Cuba.",
-        "weekday": _DEFAULT_WEEKDAY,
-        "weekend": _DEFAULT_WEEKEND,
+        "description": (
+            f"Perfil estimado, escalado al sistema ({capacity_kw:.0f} kW solar, "
+            f"pico de carga ~{peak_kw:.1f} kW). Configúrelo para su sitio real."
+        ),
+        "weekday": _scale_shape(_DEFAULT_WEEKDAY, peak_kw),
+        "weekend": _scale_shape(_DEFAULT_WEEKEND, peak_kw),
         "isActive": False,
         "createdAt": None,
         "updatedAt": None,

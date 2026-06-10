@@ -33,6 +33,10 @@ const SIMULATOR_QUERY = `
         timestamp hour expectedProduction expectedConsumption confidence
       }
     }
+    mlPredictNextHours(hours: 24) {
+      datetime
+      productionKw
+    }
     batteries { _id manufacturer model capacityKwh quantity }
     solar {
       battery { chargeLevel }
@@ -53,6 +57,7 @@ interface SimPoint {
 
 interface QueryResult {
   predictions: { predictions: Prediction[] };
+  mlPredictNextHours?: { datetime: string; productionKw: number }[];
   batteries: BatteryConfig[];
   solar: {
     battery: { chargeLevel: number };
@@ -229,7 +234,18 @@ export default function SimuladorBateriaPage() {
 
   const capacityKwh = data?.solar?.config?.battery?.capacityKwh ?? 0;
   const moduleCount = data?.batteries?.reduce((a, b) => a + (b.quantity ?? 0), 0) ?? 0;
-  const predictions = data?.predictions?.predictions ?? [];
+  // Producción del modelo ML (kW, ya escalada) sobre el consumo del pronóstico.
+  const predictions = useMemo(() => {
+    const base = data?.predictions?.predictions ?? [];
+    const ml = data?.mlPredictNextHours ?? [];
+    if (ml.length === 0) return base;
+    const byHour = new Map<number, number>();
+    ml.forEach((m) => byHour.set(new Date(m.datetime).getHours(), m.productionKw));
+    return base.map((p) => ({
+      ...p,
+      expectedProduction: byHour.get(p.hour) ?? p.expectedProduction,
+    }));
+  }, [data]);
   const slicedPredictions = useMemo(() => predictions.slice(0, 12), [predictions]);
 
   const simPoints = useMemo(

@@ -151,7 +151,7 @@ export default function PredictionsPanel({
                 <BrainCircuit className="w-4 h-4 text-amber-500" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Predicción solar (ML)</p>
+                <p className="text-xs text-gray-500">Predicción solar (estimación)</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <ConfidencePill
                     pct={avgSolarConf}

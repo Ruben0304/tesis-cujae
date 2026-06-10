@@ -118,16 +118,20 @@ async def fetch_open_meteo_weather(
     forecast: List[Dict[str, Any]] = []
     for idx, date_str in enumerate(daily_data["daily"]["time"]):
         date_obj = datetime.fromisoformat(date_str)
-        avg_radiation = daily_data["daily"]["shortwave_radiation_sum"][idx] / 24
+        # Open-Meteo entrega shortwave_radiation_sum en MJ/m²/día.
+        radiation_sum_mj = daily_data["daily"]["shortwave_radiation_sum"][idx] or 0.0
+        avg_radiation_wm2 = radiation_sum_mj * 1_000_000 / 86_400  # -> W/m² (media 24 h)
+        peak_sun_hours = radiation_sum_mj / 3.6                     # MJ/m² -> kWh/m²/día
+        predicted_production = round(capacity_kw * peak_sun_hours * 0.75, 1)  # PR ~0.75
         forecast.append(
             {
                 "date": date_str,
                 "dayOfWeek": _spanish_day_name(date_obj),
                 "maxTemp": daily_data["daily"]["temperature_2m_max"][idx],
                 "minTemp": daily_data["daily"]["temperature_2m_min"][idx],
-                "solarRadiation": round(avg_radiation),
+                "solarRadiation": round(avg_radiation_wm2),
                 "cloudCover": round(daily_data["daily"]["cloud_cover_mean"][idx]),
-                "predictedProduction": _calculate_solar_production(avg_radiation, capacity_kw),
+                "predictedProduction": predicted_production,
                 "condition": _weather_code_to_condition(daily_data["daily"]["weather_code"][idx]),
             }
         )

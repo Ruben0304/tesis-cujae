@@ -4,11 +4,17 @@ Battery Discharge Estimation Service - Calculates time until battery depletion.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional
 
 from .ml_prediction_service import predict_for_specific_hours
-from .consumption_prediction_service import predict_consumption_for_specific_hours
+from .ml_model_service import ml_model_service
+# Consumo por perfil: funciona sin el modelo ML de consumo y ya está en kW
+# reales del sistema (sin el divisor /10 del resolver de consumo ML).
+from .consumption_profile_service import predict_for_date as predict_consumption_for_date
 from .system_config import get_system_config
+
+LOCAL_TZ = ZoneInfo("America/Havana")
 
 
 async def calculate_battery_discharge_time(
@@ -48,9 +54,17 @@ async def calculate_battery_discharge_time(
     if battery_capacity_kwh <= 0:
         raise ValueError("Battery capacity must be greater than 0")
 
-    # Determine date
+    # El modelo solar devuelve FACTOR DE CAPACIDAD (0-1); para pasar a kW reales
+    # se multiplica por la capacidad solar / capacidad de referencia (= 1.0).
+    solar_capacity_kw = config["solar"]["capacityKw"]
+    reference_capacity_kw = ml_model_service.get_reference_capacity_kw() or 1.0
+    production_scale = (
+        solar_capacity_kw / reference_capacity_kw if reference_capacity_kw > 0 else 1.0
+    )
+
+    # Determine date (hora local de La Habana)
     if date is None:
-        target_date = datetime.now().date()
+        target_date = datetime.now(LOCAL_TZ).date()
     else:
         try:
             target_date = datetime.fromisoformat(date).date()
@@ -86,15 +100,9 @@ async def calculate_battery_discharge_time(
             lon
         )
 
-        # Get consumption predictions
-        consumption_today = await predict_consumption_for_specific_hours(
-            date_str,
-            hours_to_simulate
-        )
-        consumption_tomorrow = await predict_consumption_for_specific_hours(
-            next_date_str,
-            hours_next_day
-        )
+        # Get consumption predictions (perfil configurado, no requiere modelo ML)
+        consumption_today = predict_consumption_for_date(date_str, hours_to_simulate)
+        consumption_tomorrow = predict_consumption_for_date(next_date_str, hours_next_day)
     except Exception as e:
         raise RuntimeError(f"Failed to get predictions: {e}")
 
@@ -113,7 +121,8 @@ async def calculate_battery_discharge_time(
     minutes_to_empty = None
 
     for i, (prod, cons) in enumerate(zip(all_production, all_consumption)):
-        production_kw = prod["production_kw"]
+        # prod["production_kw"] es el factor de capacidad (0-1) -> a kW reales
+        production_kw = prod["production_kw"] * production_scale
         consumption_kw = cons["consumption_kw"]
 
         # Calculate energy balance for this hour (in kWh)
