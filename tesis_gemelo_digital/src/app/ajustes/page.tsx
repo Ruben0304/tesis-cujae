@@ -1,5 +1,9 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BatteryCharging, Info, Layers, Power, Settings2, BarChart2, MapPin, FileDown } from 'lucide-react';
+import { canAccessModule, moduleKeyFromPath } from '@/lib/permissions';
 
 const sections = [
   {
@@ -53,17 +57,39 @@ const sections = [
 ] as const;
 
 export default function AjustesHomePage() {
+  const [role, setRole] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('gd_auth_user');
+      setRole(stored ? (JSON.parse(stored)?.role ?? null) : null);
+    } catch {
+      setRole(null);
+    } finally {
+      setLoaded(true);
+    }
+  }, []);
+
+  // Solo se muestran los módulos que el rol del usuario puede usar.
+  const visibleSections = !loaded ? [] : sections.filter((section) => {
+    const key = moduleKeyFromPath(section.href);
+    return key ? canAccessModule(role, key) : true;
+  });
+
   return (
     <section className="rounded-3xl border border-white/60 bg-white/80 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
       <header className="mb-5">
         <h2 className="text-xl font-semibold text-slate-900">Ajustes</h2>
         <p className="text-sm text-slate-500">
-          Administre cada parte de la configuración en su propia sección.
+          {role === 'admin'
+            ? 'Administre cada parte de la configuración en su propia sección.'
+            : 'Exporte reportes del sistema. La configuración avanzada está reservada a administradores.'}
         </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {sections.map((section) => (
+        {visibleSections.map((section) => (
           <Link
             key={section.href}
             href={section.href}

@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import AuthGate from '@/app/components/AuthGate';
 import type { User } from '@/types';
+import { canAccessModule, moduleKeyFromPath } from '@/lib/permissions';
 
 const SESSION_KEY = 'gd_auth_user';
 
@@ -43,6 +44,16 @@ export default function AjustesLayout({ children }: { children: React.ReactNode 
       setBootstrapped(true);
     }
   }, []);
+
+  // Guard de ruta único: si el rol del usuario no puede acceder al módulo de la
+  // URL actual, lo enviamos al índice de Ajustes (donde solo verá lo permitido).
+  useEffect(() => {
+    if (!bootstrapped || !user) return;
+    const moduleKey = moduleKeyFromPath(pathname);
+    if (moduleKey && !canAccessModule(user.role, moduleKey)) {
+      router.replace('/ajustes');
+    }
+  }, [bootstrapped, user, pathname, router]);
 
   const handleAuthenticated = (authenticated: User) => {
     setUser(authenticated);
