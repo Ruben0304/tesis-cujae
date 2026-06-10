@@ -71,12 +71,12 @@ async def lifespan(app: FastAPI):
         print("   Please run the training notebook: backend/notebooks/solar_production_prediction.ipynb")
 
     # Load ML model for consumption prediction
-    try:
-        ml_consumption_service.load_model()
-    except Exception as e:
-        print(f"⚠️  Warning: Could not load consumption prediction model: {e}")
-        print("   Consumption prediction endpoint will not be available.")
-        print("   Please run the training notebook: backend/notebooks/06_prediccion_consumo.ipynb")
+    # try:
+    #     ml_consumption_service.load_model()
+    # except Exception as e:
+    #     print(f"⚠️  Warning: Could not load consumption prediction model: {e}")
+    #     print("   Consumption prediction endpoint will not be available.")
+    #     print("   Please run the training notebook: backend/notebooks/06_prediccion_consumo.ipynb")
 
     # Start background task for historical data collection
     task = asyncio.create_task(_periodic_snapshot_saver())
