@@ -62,13 +62,13 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  Warning: Could not load panel classifier model: {e}")
         print("   Panel classification endpoint will not be available.")
 
-    # Load ML model for solar production prediction
+    # Load ML model for solar production prediction (La Habana, capacity factor)
     try:
-        ml_model_service.load_model(model_name="random_forest")
+        ml_model_service.load_model(model_name="havana_v1")
     except Exception as e:
         print(f"⚠️  Warning: Could not load solar production prediction model: {e}")
         print("   Solar production prediction endpoint will not be available.")
-        print("   Please run the training notebook: backend/notebooks/solar_production_prediction.ipynb")
+        print("   Please run the training script: backend/notebooks/train_solar_havana.py")
 
     # Load ML model for consumption prediction
     # try:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List
 
 import httpx
@@ -12,11 +13,16 @@ import numpy as np
 import pandas as pd
 
 from .ml_model_service import ml_model_service
+from .solar_features import build_features
 
 
 OPENMETEO_BASE_URL = "https://api.open-meteo.com/v1/forecast"
 DEFAULT_LAT = 23.1136  # La Habana, Cuba
 DEFAULT_LON = -82.3666
+# Convención: los datetimes naive que entran a este servicio se interpretan como
+# hora local de La Habana (es como el frontend pide "las 7am-10pm"). El modelo
+# trabaja internamente en UTC; aquí se hace la conversión.
+LOCAL_TZ = ZoneInfo("America/Havana")
 
 
 async def fetch_open_meteo_hourly(
@@ -49,7 +55,9 @@ async def fetch_open_meteo_hourly(
         ]),
         "start_date": start_date.strftime("%Y-%m-%d"),
         "end_date": end_date.strftime("%Y-%m-%d"),
-        "timezone": "auto",
+        # UTC so that timestamps align unambiguously with the target datetimes
+        # and with how the model was trained (features module handles local time).
+        "timezone": "UTC",
     }
 
     async with httpx.AsyncClient(timeout=5) as client:
@@ -61,72 +69,50 @@ async def fetch_open_meteo_hourly(
 
 def prepare_features_dataframe(
     weather_data: Dict[str, Any],
-    target_datetimes: List[datetime]
+    target_datetimes: List[datetime],
+    lat: float = DEFAULT_LAT,
+    lon: float = DEFAULT_LON,
 ) -> pd.DataFrame:
     """
-    Prepare features DataFrame from Open-Meteo data for model prediction.
+    Build the model feature matrix from Open-Meteo data for the requested hours.
+
+    Uses the shared ``build_features`` so the transformation is byte-for-byte
+    identical to the one applied during training (no train/serve skew).
 
     Args:
-        weather_data: Hourly weather data from Open-Meteo
+        weather_data: Hourly weather data from Open-Meteo (timezone=UTC)
         target_datetimes: List of target datetimes to predict
+        lat, lon: Coordinates (for the pvlib solar-geometry features)
 
     Returns:
-        DataFrame with features ready for model prediction
+        DataFrame with columns == solar_features.FEATURE_COLUMNS
     """
     hourly = weather_data.get("hourly", {})
 
-    # Parse datetimes from API
-    api_times = [datetime.fromisoformat(t) for t in hourly.get("time", [])]
+    # Open-Meteo (timezone=UTC) timestamps -> tz-aware UTC index.
+    api_times = pd.to_datetime(hourly.get("time", []), utc=True)
+    weather_df = pd.DataFrame(
+        {
+            "temperature_2m": hourly["temperature_2m"],
+            "relative_humidity_2m": hourly["relative_humidity_2m"],
+            "wind_speed_10m": hourly["wind_speed_10m"],
+            "cloud_cover": hourly["cloud_cover"],
+            "shortwave_radiation": hourly["shortwave_radiation"],
+        },
+        index=api_times,
+    )
 
-    # Create mapping from datetime to index
-    time_to_idx = {t: i for i, t in enumerate(api_times)}
+    # Normalize the requested datetimes to tz-aware UTC, snapped to the hour.
+    # Naive datetimes are treated as La Habana local time (see LOCAL_TZ note).
+    targets = pd.DatetimeIndex([pd.Timestamp(dt) for dt in target_datetimes])
+    targets = (
+        targets.tz_localize(LOCAL_TZ) if targets.tz is None else targets
+    ).tz_convert("UTC").floor("h")
 
-    features_list = []
+    # Align weather to the requested hours (nearest hour as a safety net).
+    weather_at_targets = weather_df.reindex(targets, method="nearest")
 
-    for target_dt in target_datetimes:
-        # Find closest matching hour in API data
-        # Open-Meteo returns hourly data, so we need to match to the hour
-        target_hour = target_dt.replace(minute=0, second=0, microsecond=0)
-
-        if target_hour not in time_to_idx:
-            # Try to find closest match
-            closest_time = min(api_times, key=lambda t: abs((t - target_hour).total_seconds()))
-            idx = time_to_idx[closest_time]
-        else:
-            idx = time_to_idx[target_hour]
-
-        # Extract features from API data
-        temperature_2m = hourly["temperature_2m"][idx]
-        relative_humidity_2m = hourly["relative_humidity_2m"][idx]
-        wind_speed_10m = hourly["wind_speed_10m"][idx]
-        cloud_cover = hourly["cloud_cover"][idx]
-        shortwave_radiation_raw = hourly["shortwave_radiation"][idx]
-
-        # Clip radiation to non-negative (as in training)
-        shortwave_radiation = max(0, shortwave_radiation_raw)
-
-        # Calculate temporal features (sin/cos encoding for hour and month)
-        hour = target_dt.hour
-        month = target_dt.month
-
-        hour_sin = np.sin(2 * np.pi * hour / 24)
-        hour_cos = np.cos(2 * np.pi * hour / 24)
-        month_sin = np.sin(2 * np.pi * month / 12)
-        month_cos = np.cos(2 * np.pi * month / 12)
-
-        features_list.append({
-            "temperature_2m": temperature_2m,
-            "relative_humidity_2m": relative_humidity_2m,
-            "wind_speed_10m": wind_speed_10m,
-            "cloud_cover": cloud_cover,
-            "shortwave_radiation": shortwave_radiation,
-            "hour_sin": hour_sin,
-            "hour_cos": hour_cos,
-            "month_sin": month_sin,
-            "month_cos": month_cos,
-        })
-
-    return pd.DataFrame(features_list)
+    return build_features(weather_at_targets, lat, lon)
 
 
 async def predict_solar_production(
@@ -164,9 +150,11 @@ async def predict_solar_production(
     if not target_datetimes:
         return []
 
-    # Determine date range for Open-Meteo API
-    min_date = min(target_datetimes).date()
-    max_date = max(target_datetimes).date()
+    # Determine date range for Open-Meteo API.
+    # Pad ±1 day so the UTC instants of local-time targets are always covered
+    # (local→UTC can shift into the previous/next calendar day).
+    min_date = (min(target_datetimes) - timedelta(days=1)).date()
+    max_date = (max(target_datetimes) + timedelta(days=1)).date()
 
     # Fetch weather data from Open-Meteo
     try:
@@ -175,7 +163,7 @@ async def predict_solar_production(
         raise RuntimeError(f"Failed to fetch weather data from Open-Meteo: {e}")
 
     # Prepare features
-    features_df = prepare_features_dataframe(weather_data, target_datetimes)
+    features_df = prepare_features_dataframe(weather_data, target_datetimes, lat, lon)
 
     # Make predictions
     try:
@@ -217,7 +205,8 @@ async def predict_next_hours(
     Returns:
         List of hourly predictions
     """
-    now = datetime.utcnow()
+    # Local (La Habana) "now" so the hourly labels match the user's wall clock.
+    now = datetime.now(LOCAL_TZ)
     target_datetimes = [
         (now + timedelta(hours=h)).isoformat()
         for h in range(hours)

@@ -61,8 +61,12 @@ class MLModelService:
                     self.metadata = json.load(f)
                 print(f"Model metadata loaded:")
                 print(f"  Model: {self.metadata.get('model_name')}")
-                print(f"  Test RMSE: {self.metadata.get('test_rmse'):.4f} kW")
-                print(f"  Test R²: {self.metadata.get('test_r2'):.4f}")
+                test_rmse = self.metadata.get("test_rmse")
+                test_r2 = self.metadata.get("test_r2")
+                if test_rmse is not None:
+                    print(f"  Test RMSE: {test_rmse:.4f}")
+                if test_r2 is not None:
+                    print(f"  Test R²: {test_r2:.4f}")
                 print(f"  Features: {len(self.metadata.get('features', []))}")
                 if self.metadata.get("reference_capacity_kw"):
                     print(f"  Reference capacity: {self.metadata['reference_capacity_kw']} kW")

@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 import random
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional
 
 from .blackout_service import get_blackouts_for_range
@@ -147,7 +148,10 @@ def _calculate_prediction_confidence(hours_ahead: int, cloud_cover: float) -> fl
 
 def generate_hourly_predictions(weather_forecast: List[Dict[str, Any]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
     predictions: List[Dict[str, Any]] = []
-    now = datetime.utcnow()
+    # Hora local de La Habana (no UTC): la curva diaria y el corte día/noche se
+    # calculan sobre la hora solar local, si no la producción "actual" sale
+    # desfasada ~5 h (y de noche siempre 0).
+    now = datetime.now(ZoneInfo("America/Havana")).replace(tzinfo=None)
     context = _resolve_solar_context(config)
     fallback_forecast = weather_forecast[0] if weather_forecast else None
 
