@@ -78,3 +78,24 @@ svg, path, circle, line {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Layout 3-columnas para simuladores — máxima especificidad, no overridable */
+.sim-layout-3col {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 16px !important;
+  align-items: flex-start !important;
+  width: 100% !important;
+}
+.sim-layout-3col > .sim-aside-left {
+  flex: 0 0 260px !important;
+  width: 260px !important;
+}
+.sim-layout-3col > .sim-aside-right {
+  flex: 0 0 280px !important;
+  width: 280px !important;
+}
+.sim-layout-3col > .sim-center {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+}

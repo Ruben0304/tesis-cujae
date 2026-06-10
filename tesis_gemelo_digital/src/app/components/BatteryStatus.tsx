@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { BatteryConfig } from '@/types';
 import { executeQuery } from '@/lib/graphql-client';
 import { BATTERY_DISCHARGE_ESTIMATE_QUERY } from '@/lib/graphql-queries';
@@ -11,6 +12,8 @@ import {
   Info,
   Loader2,
   X,
+  FlaskConical,
+  Sun,
 } from 'lucide-react';
 
 interface BatteryStatusProps {
@@ -28,6 +31,7 @@ interface BatteryDischargeEstimateResponse {
 const clampHour = (value: number) => Math.min(24, Math.max(0, Math.round(value)));
 
 export default function BatteryStatus({ batteries }: BatteryStatusProps) {
+  const router = useRouter();
   const breakdown = useMemo(() => {
     if (!batteries || batteries.length === 0) return [];
 
@@ -177,15 +181,34 @@ export default function BatteryStatus({ batteries }: BatteryStatusProps) {
         </>
       )}
 
-      <button
-        type="button"
-        onClick={openDialog}
-        disabled={breakdown.length === 0}
-        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-      >
-        <Clock className="w-4 h-4" />
-        ¿Cuándo se descargará?
-      </button>
+      <div className="mt-5 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={openDialog}
+          disabled={breakdown.length === 0}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+        >
+          <Clock className="w-4 h-4" />
+          ¿Cuándo se descargará?
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push('/simulador-bateria')}
+          disabled={breakdown.length === 0}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <FlaskConical className="w-4 h-4" />
+          Simular escenario
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push('/simulador-sombras')}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+        >
+          <Sun className="w-4 h-4" />
+          Simular sombras 3D
+        </button>
+      </div>
 
       {dialogOpen && (
         <div
@@ -336,6 +359,7 @@ export default function BatteryStatus({ batteries }: BatteryStatusProps) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

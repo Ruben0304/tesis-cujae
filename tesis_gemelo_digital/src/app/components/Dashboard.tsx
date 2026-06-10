@@ -8,11 +8,11 @@ import BatteryStatus from './BatteryStatus';
 import WeatherToday, { LottieAnimationType } from './WeatherToday';
 import WeatherForecast from './WeatherForecast';
 import PredictionsPanel from './PredictionsPanel';
-import FlujoEnergia from './FlujoEnergia';
 import FloatingBottomNav from './FloatingBottomNav';
 import SolarStatsView from './SolarStatsView';
 import HistorialPanel from './HistorialPanel';
 import StarsBackground from './StarsBackground';
+import SystemDiagram from './SystemDiagram';
 import {
   SolarData,
   BatteryStatus as BatteryStatusType,
@@ -701,24 +701,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     };
   }, [solarData]);
 
-  const flujoValores = useMemo(() => {
-    if (!solarData || !energyFlowData) {
-      return {
-        solar: 0,
-        battery: 0,
-        grid: 0,
-        consumo: 0,
-      };
-    }
-
-    return {
-      solar: Math.max(0, energyFlowData.solarToLoad),
-      battery: Math.max(0, energyFlowData.batteryToLoad),
-      grid: Math.max(0, energyFlowData.gridToLoad),
-      consumo: Math.max(0, solarData.current.consumption),
-    };
-  }, [solarData, energyFlowData]);
-
   // Fetch ML predictions for a specific day (7am-10pm)
   const fetchMLPredictionsForDay = useCallback(async (dayOffset: number) => {
     setMlLoading(true);
@@ -936,7 +918,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
       {/* Header Simplificado */}
       <header className="border-b border-gray-200 bg-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
@@ -1000,20 +982,16 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       )}
 
       {/* Main Content - Simplificado */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-32">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-32">
         {activeSection === 'overview' && (
           <>
-            {/* Flujo de Energía y Resumen del Clima */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-6 sm:mb-8">
-              <div className="lg:col-span-1 lg:pr-4">
-                <FlujoEnergia
-                  values={flujoValores}
-                  batteryLevel={solarData.battery.chargeLevel}
-                  energyFlow={energyFlowData}
-                  production={solarData.current.production}
-                  consumption={solarData.current.consumption}
-                  batteryPowerFlow={solarData.battery.powerFlow}
-                  inverterCapacityKw={solarData.config.solar.capacityKw}
+            {/* Diagrama del sistema y Resumen del Clima */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3">
+              <div className="lg:col-span-1 lg:pr-4 flex items-center justify-center">
+                <SystemDiagram
+                  solarKw={solarData.current.production}
+                  batteryKwh={solarData.config.battery.capacityKwh}
+                  consumptionKw={solarData.current.consumption}
                 />
               </div>
               <div className="lg:col-span-1 flex flex-col gap-6">

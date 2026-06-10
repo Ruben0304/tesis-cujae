@@ -696,7 +696,8 @@ def _map_battery_spec(data: dict) -> BatteryConfigSpec:
 
 
 def _map_system_config(config: dict) -> SystemConfigType:
-    location = LocationConfigType(**config["location"])
+    loc = config["location"]
+    location = LocationConfigType(lat=loc["lat"], lon=loc["lon"], name=loc["name"])
     solar_spec = _map_panel_spec(config["solar"]["spec"]) if config["solar"].get("spec") else None
     battery_spec = _map_battery_spec(config["battery"]["spec"]) if config["battery"].get("spec") else None
     solar = SolarConfigType(
