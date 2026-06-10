@@ -79,7 +79,7 @@ export default function ReporteExport() {
 
       const now = new Date();
       const meta: ReportMeta = {
-        title: reportType === 'daily' ? 'Reporte de Resumen Diario' : 'Reporte de Lecturas Horarias',
+        title: reportType === 'daily' ? 'Reporte de resumen diario' : 'Reporte de lecturas horarias',
         systemName: 'Gemelo Digital Fotovoltaico',
         location: locationName,
         period: `Últimos ${days} días — hasta ${now.toLocaleDateString('es-CU', { year: 'numeric', month: 'long', day: 'numeric' })}`,
@@ -123,11 +123,11 @@ export default function ReporteExport() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <DocumentArrowDownIcon className="h-6 w-6 text-sky-400" />
-          Exportar Reportes
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <DocumentArrowDownIcon className="h-6 w-6 text-sky-500" />
+          Exportar reportes
         </h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-slate-500 mt-1">
           Descarga los datos del sistema en formato CSV (datos brutos) o PDF (reporte profesional con gráficos y métricas).
         </p>
       </div>
@@ -135,8 +135,8 @@ export default function ReporteExport() {
       {/* Config grid */}
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Report type */}
-        <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-5">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">Tipo de reporte</h3>
+        <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Tipo de reporte</h3>
           <div className="space-y-2">
             {([
               { id: 'daily' as ReportType, label: 'Resumen diario', desc: 'Totales por día: producción, consumo, CO₂, batería media' },
@@ -146,8 +146,8 @@ export default function ReporteExport() {
                 key={opt.id}
                 className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all ${
                   reportType === opt.id
-                    ? 'border-sky-500/70 bg-sky-900/20 ring-1 ring-sky-500/30'
-                    : 'border-slate-700 hover:border-slate-600 bg-slate-800/40'
+                    ? 'border-sky-400 bg-sky-50 ring-1 ring-sky-300'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
                 <input
@@ -159,8 +159,8 @@ export default function ReporteExport() {
                   className="mt-0.5 accent-sky-500"
                 />
                 <div>
-                  <p className="text-sm font-medium text-white">{opt.label}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
+                  <p className="text-sm font-medium text-slate-900">{opt.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
                 </div>
               </label>
             ))}
@@ -168,8 +168,8 @@ export default function ReporteExport() {
         </div>
 
         {/* Period */}
-        <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-5">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+        <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
             <CalendarIcon className="h-4 w-4 text-slate-400" />
             Período de datos
           </h3>
@@ -179,8 +179,8 @@ export default function ReporteExport() {
                 key={opt.days}
                 className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
                   days === opt.days
-                    ? 'border-emerald-500/70 bg-emerald-900/20 ring-1 ring-emerald-500/30'
-                    : 'border-slate-700 hover:border-slate-600 bg-slate-800/40'
+                    ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
                 <input
@@ -192,7 +192,7 @@ export default function ReporteExport() {
                   className="accent-emerald-500"
                 />
                 <div className="flex flex-1 items-center justify-between">
-                  <span className="text-sm text-white">{opt.label}</span>
+                  <span className="text-sm text-slate-900">{opt.label}</span>
                   <span className="text-xs text-slate-500 font-mono">{opt.days}d</span>
                 </div>
               </label>
@@ -202,17 +202,17 @@ export default function ReporteExport() {
       </div>
 
       {/* What's included */}
-      <div className="rounded-2xl bg-slate-800/40 border border-slate-700/40 p-5">
-        <h3 className="text-sm font-semibold text-slate-300 mb-3">Contenido del reporte</h3>
+      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Contenido del reporte</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {/* CSV */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2 mb-2">
-              <TableCellsIcon className="h-5 w-5 text-emerald-400" />
-              <span className="text-sm font-semibold text-white">CSV</span>
-              <span className="ml-auto text-xs bg-emerald-900/50 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-700/40">Datos brutos</span>
+              <TableCellsIcon className="h-5 w-5 text-emerald-500" />
+              <span className="text-sm font-semibold text-slate-900">CSV</span>
+              <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">Datos brutos</span>
             </div>
-            <ul className="text-xs text-slate-400 space-y-1">
+            <ul className="text-xs text-slate-500 space-y-1">
               <li>• Todos los campos numéricos</li>
               <li>• Compatible con Excel / Google Sheets</li>
               <li>• Ideal para análisis estadístico</li>
@@ -223,13 +223,13 @@ export default function ReporteExport() {
           </div>
 
           {/* PDF */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2 mb-2">
-              <DocumentTextIcon className="h-5 w-5 text-sky-400" />
-              <span className="text-sm font-semibold text-white">PDF</span>
-              <span className="ml-auto text-xs bg-sky-900/50 text-sky-300 px-2 py-0.5 rounded-full border border-sky-700/40">Reporte profesional</span>
+              <DocumentTextIcon className="h-5 w-5 text-sky-500" />
+              <span className="text-sm font-semibold text-slate-900">PDF</span>
+              <span className="ml-auto text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full border border-sky-200">Reporte profesional</span>
             </div>
-            <ul className="text-xs text-slate-400 space-y-1">
+            <ul className="text-xs text-slate-500 space-y-1">
               <li>• Portada con KPIs destacados</li>
               {reportType === 'daily' && <li>• Gráfico de barras producción vs consumo</li>}
               <li>• Tabla detallada paginada</li>
@@ -244,10 +244,10 @@ export default function ReporteExport() {
       {status.type !== 'idle' && (
         <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
           status.type === 'ok'
-            ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-300'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
             : status.type === 'error'
-            ? 'border-red-700/50 bg-red-900/20 text-red-300'
-            : 'border-slate-700 bg-slate-800/60 text-slate-300'
+            ? 'border-red-200 bg-red-50 text-red-600'
+            : 'border-slate-200 bg-slate-50 text-slate-600'
         }`}>
           {status.type === 'loading' && <ArrowPathIcon className="h-4 w-4 animate-spin shrink-0" />}
           {status.type === 'ok' && <CheckCircleIcon className="h-4 w-4 shrink-0" />}
@@ -282,16 +282,16 @@ export default function ReporteExport() {
         {status.type !== 'idle' && (
           <button
             onClick={() => setStatus({ type: 'idle' })}
-            className="rounded-xl border border-slate-700 px-4 py-3 text-sm text-slate-400 hover:text-white hover:border-slate-500 transition"
+            className="rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-300 transition"
           >
             Limpiar
           </button>
         )}
       </div>
 
-      <p className="text-xs text-slate-600">
+      <p className="text-xs text-slate-500">
         Los reportes se generan localmente en el navegador. Los datos provienen de la colección{' '}
-        <code className="bg-slate-800 px-1 rounded">lecturas_historicas</code> de MongoDB.
+        <code className="bg-slate-100 text-slate-700 px-1 rounded">lecturas_historicas</code> de MongoDB.
       </p>
     </div>
   );

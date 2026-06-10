@@ -54,6 +54,7 @@ export async function executeQuery<T = any>(
 
   if (result.error) {
     console.error('GraphQL Error:', result.error)
+    handleAuthError(result.error.message)
     throw new Error(result.error.message)
   }
 
@@ -71,8 +72,30 @@ export async function executeMutation<T = any>(
 
   if (result.error) {
     console.error('GraphQL Error:', result.error)
+    handleAuthError(result.error.message)
     throw new Error(result.error.message)
   }
 
   return result.data
+}
+
+/**
+ * Detecta errores de sesión (token ausente/inválido/expirado) y, en ese caso,
+ * limpia la sesión y redirige al login para evitar mostrar errores crudos.
+ * El backend responde "Autenticación requerida. Por favor inicia sesión." cuando
+ * el JWT no es válido (ver backend/app/auth.py).
+ */
+let authRedirectInProgress = false
+function handleAuthError(message: string | undefined): void {
+  if (!message || typeof window === 'undefined' || authRedirectInProgress) return
+  const isAuthError = /autenticación requerida|inicia sesión|token (inválido|expirado)|no autorizado|unauthorized/i.test(message)
+  if (!isAuthError) return
+  authRedirectInProgress = true
+  try {
+    window.localStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+  // Redirección dura a la raíz: page.tsx mostrará el login al no haber sesión.
+  window.location.href = '/'
 }

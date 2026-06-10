@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type Re
 import { Clock3, FileSpreadsheet, LineChart, Pencil, Plus, Trash, Upload, X, Zap } from 'lucide-react';
 import type { ApplianceConfig, ApplianceMode, InverterConfig, SystemConfig } from '@/types';
 import { executeMutation } from '@/lib/graphql-client';
+import ConfirmDialog from './ConfirmDialog';
 
 interface AppliancesManagerProps {
   appliances: ApplianceConfig[];
@@ -138,6 +139,7 @@ export default function AppliancesManager({
   onRefresh,
 }: AppliancesManagerProps) {
   const [message, setMessage] = useState<StatusMessage>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [modalMessage, setModalMessage] = useState<StatusMessage>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
@@ -356,18 +358,22 @@ export default function AppliancesManager({
       });
       return;
     }
-    if (!window.confirm('¿Desea eliminar este electrodoméstico?')) return;
-    try {
-      await executeMutation(DELETE_APPLIANCE_MUTATION, { id: appliance._id });
-      setMessage({ type: 'success', text: 'Electrodoméstico eliminado correctamente.' });
-      await onRefresh?.();
-    } catch (error) {
-      console.error(error);
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo eliminar el electrodoméstico.',
-      });
-    }
+    setConfirmState({
+      message: '¿Desea eliminar este electrodoméstico? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        try {
+          await executeMutation(DELETE_APPLIANCE_MUTATION, { id: appliance._id });
+          setMessage({ type: 'success', text: 'Electrodoméstico eliminado correctamente.' });
+          await onRefresh?.();
+        } catch (error) {
+          console.error(error);
+          setMessage({
+            type: 'error',
+            text: error instanceof Error ? error.message : 'No se pudo eliminar el electrodoméstico.',
+          });
+        }
+      },
+    });
   };
 
   const saveQuickConfig = async (appliance: ApplianceConfig, key: string) => {
@@ -394,6 +400,17 @@ export default function AppliancesManager({
 
   return (
     <>
+      <ConfirmDialog
+        open={!!confirmState}
+        destructive
+        confirmLabel="Eliminar"
+        message={confirmState?.message ?? ''}
+        onConfirm={() => {
+          confirmState?.onConfirm();
+          setConfirmState(null);
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
       <section className="rounded-3xl border border-white/60 bg-white/80 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>

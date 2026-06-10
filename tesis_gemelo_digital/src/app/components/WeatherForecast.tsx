@@ -28,7 +28,7 @@ export default function WeatherForecast({ weather }: WeatherForecastProps) {
   };
 
   // Tomar los próximos 5 días (saltando hoy)
-  const upcomingDays = forecast.slice(1, 6);
+  const upcomingDays = (forecast ?? []).slice(1, 6);
 
   return (
     <div className="h-full flex flex-col bg-white/30 backdrop-blur-md rounded-3xl p-5">
@@ -38,7 +38,12 @@ export default function WeatherForecast({ weather }: WeatherForecastProps) {
         <p className="text-[10px] text-gray-500 mt-0.5">Próximos 5 días</p>
       </div>
 
-      {/* Forecast List */}
+      {upcomingDays.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-center text-xs text-gray-500">
+          Pronóstico no disponible por el momento.
+        </div>
+      ) : (
+      /* Forecast List */
       <div className="flex-1 flex flex-col justify-between space-y-2">
         {upcomingDays.map((day, index) => (
           <div
@@ -81,6 +86,7 @@ export default function WeatherForecast({ weather }: WeatherForecastProps) {
           </div>
         ))}
       </div>
+      )}
 
       {/* Footer note */}
       <div className="mt-3 pt-3 border-t border-white/30">

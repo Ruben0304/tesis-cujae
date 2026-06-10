@@ -133,7 +133,7 @@ function DevicesSectionScreen({ section }: { section: SettingsSectionView }) {
 
 function StandaloneSection({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-white/60 bg-slate-900/90 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
+    <div className="rounded-3xl border border-white/60 bg-white/80 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
       {children}
     </div>
   );

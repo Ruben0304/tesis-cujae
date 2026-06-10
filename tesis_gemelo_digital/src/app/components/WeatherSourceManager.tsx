@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CloudSun, Link2, WandSparkles } from 'lucide-react';
 import { executeMutation, executeQuery } from '@/lib/graphql-client';
+import ConfirmDialog from './ConfirmDialog';
 
 type StatusMessage = { type: 'success' | 'error'; text: string } | null;
 
@@ -376,6 +377,7 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
   const [sources, setSources] = useState<WeatherSource[]>([]);
   const [status, setStatus] = useState<StatusMessage>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [testing, setTesting] = useState(false);
   const [detectedFields, setDetectedFields] = useState<WeatherFieldCandidate[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -634,26 +636,41 @@ export default function WeatherSourceManager({ onSaved }: WeatherSourceManagerPr
     }
   };
 
-  const removeSource = async (id: string) => {
-    if (!window.confirm('¿Desea eliminar esta fuente meteorológica?')) return;
-    setLoading(true);
-    setStatus(null);
-    try {
-      await executeMutation(DELETE_MUTATION, { id });
-      await loadSources();
-      setStatus({ type: 'success', text: 'Fuente eliminada.' });
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo eliminar la fuente.',
-      });
-    } finally {
-      setLoading(false);
-    }
+  const removeSource = (id: string) => {
+    setConfirmState({
+      message: '¿Desea eliminar esta fuente meteorológica? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        setLoading(true);
+        setStatus(null);
+        try {
+          await executeMutation(DELETE_MUTATION, { id });
+          await loadSources();
+          setStatus({ type: 'success', text: 'Fuente eliminada.' });
+        } catch (error) {
+          setStatus({
+            type: 'error',
+            text: error instanceof Error ? error.message : 'No se pudo eliminar la fuente.',
+          });
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   };
 
   return (
     <section className="rounded-3xl border border-white/60 bg-white/80 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
+      <ConfirmDialog
+        open={!!confirmState}
+        destructive
+        confirmLabel="Eliminar"
+        message={confirmState?.message ?? ''}
+        onConfirm={() => {
+          confirmState?.onConfirm();
+          setConfirmState(null);
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Fuente de clima configurable</h2>

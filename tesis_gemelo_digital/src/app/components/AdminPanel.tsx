@@ -64,6 +64,13 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [newRole, setNewRole] = useState<'user' | 'admin'>('user');
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    useEffect(() => {
+        if (!toast) return;
+        const t = setTimeout(() => setToast(null), 2800);
+        return () => clearTimeout(t);
+    }, [toast]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -96,15 +103,19 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
             await fetchData();
         } catch (error) {
             console.error('Error generating code:', error);
-            alert('Error al generar el código');
+            setToast({ type: 'error', text: 'No se pudo generar el código.' });
         } finally {
             setGenerating(false);
         }
     };
 
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
-        // Could add a toast notification here
+    const copyToClipboard = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setToast({ type: 'success', text: `Código ${text} copiado al portapapeles.` });
+        } catch {
+            setToast({ type: 'error', text: 'No se pudo copiar el código.' });
+        }
     };
 
     if (loading && users.length === 0) {
@@ -117,6 +128,20 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
 
     return (
         <div className="space-y-8">
+            {/* Toast de feedback */}
+            {toast && (
+                <div
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    className={`fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg ${
+                        toast.type === 'success'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-red-600 text-white'
+                    }`}
+                >
+                    {toast.text}
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

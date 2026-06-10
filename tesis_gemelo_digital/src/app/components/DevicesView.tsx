@@ -30,6 +30,7 @@ import type {
 import { executeMutation } from '@/lib/graphql-client';
 import AppliancesManager from './AppliancesManager';
 import WeatherSourceManager from './WeatherSourceManager';
+import ConfirmDialog from './ConfirmDialog';
 
 export type SettingsView =
   | 'home'
@@ -256,6 +257,7 @@ export default function DevicesView({
   const [panelMessage, setPanelMessage] = useState<StatusMessage>(null);
   const [panelModalMessage, setPanelModalMessage] = useState<StatusMessage>(null);
   const [panelModalOpen, setPanelModalOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [panelModalMode, setPanelModalMode] = useState<'create' | 'edit'>('create');
   const [panelForm, setPanelForm] = useState<PanelFormState>(emptyPanelForm);
   const [panelLoading, setPanelLoading] = useState(false);
@@ -640,21 +642,25 @@ export default function DevicesView({
       });
       return;
     }
-    if (!window.confirm('¿Desea eliminar este panel?')) return;
-    try {
-      await executeMutation(DELETE_PANEL_MUTATION, { id: panel._id });
-      setPanelMessage({ type: 'success', text: 'Panel eliminado correctamente.' });
-      if (detailModal?.type === 'panel' && detailModal.data._id === panel._id) {
-        setDetailModal(null);
-      }
-      await onRefresh?.();
-    } catch (error) {
-      console.error(error);
-      setPanelMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo eliminar el panel.',
-      });
-    }
+    setConfirmState({
+      message: '¿Desea eliminar este panel? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        try {
+          await executeMutation(DELETE_PANEL_MUTATION, { id: panel._id });
+          setPanelMessage({ type: 'success', text: 'Panel eliminado correctamente.' });
+          if (detailModal?.type === 'panel' && detailModal.data._id === panel._id) {
+            setDetailModal(null);
+          }
+          await onRefresh?.();
+        } catch (error) {
+          console.error(error);
+          setPanelMessage({
+            type: 'error',
+            text: error instanceof Error ? error.message : 'No se pudo eliminar el panel.',
+          });
+        }
+      },
+    });
   };
 
   const deleteBattery = async (battery: BatteryConfig) => {
@@ -665,21 +671,25 @@ export default function DevicesView({
       });
       return;
     }
-    if (!window.confirm('¿Desea eliminar esta batería?')) return;
-    try {
-      await executeMutation(DELETE_BATTERY_MUTATION, { id: battery._id });
-      setBatteryMessage({ type: 'success', text: 'Batería eliminada correctamente.' });
-      if (detailModal?.type === 'battery' && detailModal.data._id === battery._id) {
-        setDetailModal(null);
-      }
-      await onRefresh?.();
-    } catch (error) {
-      console.error(error);
-      setBatteryMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo eliminar la batería.',
-      });
-    }
+    setConfirmState({
+      message: '¿Desea eliminar esta batería? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        try {
+          await executeMutation(DELETE_BATTERY_MUTATION, { id: battery._id });
+          setBatteryMessage({ type: 'success', text: 'Batería eliminada correctamente.' });
+          if (detailModal?.type === 'battery' && detailModal.data._id === battery._id) {
+            setDetailModal(null);
+          }
+          await onRefresh?.();
+        } catch (error) {
+          console.error(error);
+          setBatteryMessage({
+            type: 'error',
+            text: error instanceof Error ? error.message : 'No se pudo eliminar la batería.',
+          });
+        }
+      },
+    });
   };
 
   const deleteInverter = async (inverter: InverterConfig) => {
@@ -690,21 +700,25 @@ export default function DevicesView({
       });
       return;
     }
-    if (!window.confirm('¿Desea eliminar este inversor?')) return;
-    try {
-      await executeMutation(DELETE_INVERTER_MUTATION, { id: inverter._id });
-      setInverterMessage({ type: 'success', text: 'Inversor eliminado correctamente.' });
-      if (detailModal?.type === 'inverter' && detailModal.data._id === inverter._id) {
-        setDetailModal(null);
-      }
-      await onRefresh?.();
-    } catch (error) {
-      console.error(error);
-      setInverterMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'No se pudo eliminar el inversor.',
-      });
-    }
+    setConfirmState({
+      message: '¿Desea eliminar este inversor? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        try {
+          await executeMutation(DELETE_INVERTER_MUTATION, { id: inverter._id });
+          setInverterMessage({ type: 'success', text: 'Inversor eliminado correctamente.' });
+          if (detailModal?.type === 'inverter' && detailModal.data._id === inverter._id) {
+            setDetailModal(null);
+          }
+          await onRefresh?.();
+        } catch (error) {
+          console.error(error);
+          setInverterMessage({
+            type: 'error',
+            text: error instanceof Error ? error.message : 'No se pudo eliminar el inversor.',
+          });
+        }
+      },
+    });
   };
 
   const panelDetailRows = (panel: SolarPanelConfig) => buildPanelSpecs(panel);
@@ -775,6 +789,17 @@ export default function DevicesView({
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={!!confirmState}
+        destructive
+        confirmLabel="Eliminar"
+        message={confirmState?.message ?? ''}
+        onConfirm={() => {
+          confirmState?.onConfirm();
+          setConfirmState(null);
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
       <div className="grid gap-4 rounded-3xl border border-white/50 bg-white/70 p-6 backdrop-blur-xl shadow-[0_30px_70px_-50px_rgba(15,23,42,0.65)]">
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white/80 p-5">
           <Info className="h-5 w-5 text-blue-500" />

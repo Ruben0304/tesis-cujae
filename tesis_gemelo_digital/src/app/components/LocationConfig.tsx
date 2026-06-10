@@ -166,22 +166,22 @@ export default function LocationConfig() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <MapPinIcon className="h-6 w-6 text-rose-400" />
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <MapPinIcon className="h-6 w-6 text-rose-500" />
           Ubicación del sistema
         </h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-slate-500 mt-1">
           Define las coordenadas geográficas de la instalación. Se usan para cálculos solares y datos meteorológicos.
         </p>
       </div>
 
       {/* Current config badge */}
       {current && !fetching && (
-        <div className="flex items-center gap-3 rounded-xl bg-slate-800/60 border border-slate-700/50 px-4 py-3">
-          <GlobeAltIcon className="h-5 w-5 text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+          <GlobeAltIcon className="h-5 w-5 text-emerald-500 shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{current.name}</p>
-            <p className="text-xs text-slate-400 font-mono">
+            <p className="text-sm font-semibold text-slate-900 truncate">{current.name}</p>
+            <p className="text-xs text-slate-500 font-mono">
               {Math.abs(current.lat).toFixed(4)}°{current.lat >= 0 ? 'N' : 'S'} · {Math.abs(current.lon).toFixed(4)}°{current.lon >= 0 ? 'E' : 'O'}
               {current.updatedAt && (
                 <span className="ml-2 text-slate-500">
@@ -192,7 +192,7 @@ export default function LocationConfig() {
           </div>
           <button
             onClick={load}
-            className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition"
+            className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
             title="Recargar"
           >
             <ArrowPathIcon className={`h-4 w-4 ${fetching ? 'animate-spin' : ''}`} />
@@ -205,14 +205,14 @@ export default function LocationConfig() {
         <form onSubmit={handleSave} className="space-y-4">
           {/* Preset selector */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
               <MagnifyingGlassIcon className="inline h-4 w-4 mr-1 text-slate-400" />
               Selección rápida — ciudades de Cuba
             </label>
             <select
               value={preset}
               onChange={e => handlePreset(e.target.value)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
             >
               <option value="">Seleccionar ciudad…</option>
               {PRESETS.map(p => (
@@ -225,7 +225,7 @@ export default function LocationConfig() {
           {/* Coords row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Latitud (−90 a 90)</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Latitud (−90 a 90)</label>
               <input
                 type="number"
                 step="0.000001"
@@ -233,17 +233,17 @@ export default function LocationConfig() {
                 max="90"
                 value={lat}
                 onChange={e => { setLat(e.target.value); setPreset('__custom__'); }}
-                className={`w-full rounded-xl border bg-slate-800 px-3 py-2.5 text-sm font-mono text-white focus:outline-none focus:ring-1 transition ${
+                className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-mono text-slate-900 focus:outline-none focus:ring-1 transition ${
                   lat && !latValid
                     ? 'border-red-500 focus:ring-red-500/50'
-                    : 'border-slate-600 focus:border-sky-500 focus:ring-sky-500/50'
+                    : 'border-slate-300 focus:border-sky-500 focus:ring-sky-500/50'
                 }`}
                 placeholder="23.1136"
               />
-              {lat && !latValid && <p className="text-xs text-red-400 mt-1">Debe estar entre −90 y 90</p>}
+              {lat && !latValid && <p className="text-xs text-red-500 mt-1">Debe estar entre −90 y 90</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Longitud (−180 a 180)</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Longitud (−180 a 180)</label>
               <input
                 type="number"
                 step="0.000001"
@@ -251,28 +251,28 @@ export default function LocationConfig() {
                 max="180"
                 value={lon}
                 onChange={e => { setLon(e.target.value); setPreset('__custom__'); }}
-                className={`w-full rounded-xl border bg-slate-800 px-3 py-2.5 text-sm font-mono text-white focus:outline-none focus:ring-1 transition ${
+                className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-mono text-slate-900 focus:outline-none focus:ring-1 transition ${
                   lon && !lonValid
                     ? 'border-red-500 focus:ring-red-500/50'
-                    : 'border-slate-600 focus:border-sky-500 focus:ring-sky-500/50'
+                    : 'border-slate-300 focus:border-sky-500 focus:ring-sky-500/50'
                 }`}
                 placeholder="-82.3666"
               />
-              {lon && !lonValid && <p className="text-xs text-red-400 mt-1">Debe estar entre −180 y 180</p>}
+              {lon && !lonValid && <p className="text-xs text-red-500 mt-1">Debe estar entre −180 y 180</p>}
             </div>
           </div>
 
           {/* Name */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Nombre descriptivo</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Nombre descriptivo</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className={`w-full rounded-xl border bg-slate-800 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 transition ${
+              className={`w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-1 transition ${
                 name && !nameValid
                   ? 'border-red-500 focus:ring-red-500/50'
-                  : 'border-slate-600 focus:border-sky-500 focus:ring-sky-500/50'
+                  : 'border-slate-300 focus:border-sky-500 focus:ring-sky-500/50'
               }`}
               placeholder="Ej. CUJAE — La Habana, Cuba"
             />
@@ -285,10 +285,10 @@ export default function LocationConfig() {
           {status.type !== 'idle' && (
             <div className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
               status.type === 'ok'
-                ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-300'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 : status.type === 'error'
-                ? 'border-red-700/50 bg-red-900/20 text-red-300'
-                : 'border-slate-700 bg-slate-800/60 text-slate-300'
+                ? 'border-red-200 bg-red-50 text-red-600'
+                : 'border-slate-200 bg-slate-50 text-slate-600'
             }`}>
               {status.type === 'loading' && <ArrowPathIcon className="h-4 w-4 animate-spin shrink-0 mt-0.5" />}
               {status.type === 'ok' && <CheckCircleIcon className="h-4 w-4 shrink-0 mt-0.5" />}
@@ -314,7 +314,7 @@ export default function LocationConfig() {
             <button
               type="button"
               onClick={openMapPicker}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-700 hover:bg-slate-600 px-4 py-3 text-sm text-slate-300 transition"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-3 text-sm text-slate-700 transition"
               title="Ver en OpenStreetMap"
             >
               <MapIcon className="h-4 w-4" />
@@ -324,10 +324,10 @@ export default function LocationConfig() {
         </form>
 
         {/* Map preview */}
-        <div className="rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800/40 min-h-[280px] flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-700/50 flex items-center gap-2">
+        <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 min-h-[280px] flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
             <GlobeAltIcon className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-medium text-slate-300">Vista previa del mapa</span>
+            <span className="text-sm font-medium text-slate-700">Vista previa del mapa</span>
             <span className="ml-auto text-xs text-slate-500">OpenStreetMap</span>
           </div>
           {mapSrc ? (
@@ -347,7 +347,7 @@ export default function LocationConfig() {
       </div>
 
       {/* Info note */}
-      <div className="rounded-xl bg-amber-900/20 border border-amber-700/30 px-4 py-3 text-sm text-amber-300">
+      <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
         <strong>Nota:</strong> Cambiar la ubicación afecta los cálculos de radiación solar, las predicciones horarias y los datos meteorológicos obtenidos de Open-Meteo. Los datos históricos existentes no se recalculan.
       </div>
     </div>

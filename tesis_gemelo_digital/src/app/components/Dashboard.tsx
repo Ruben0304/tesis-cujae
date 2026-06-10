@@ -29,7 +29,7 @@ import {
   EnergyFlow,
   ConsumptionPrediction,
 } from '@/types';
-import { ArrowPathIcon, ExclamationTriangleIcon, WifiIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ExclamationTriangleIcon, WifiIcon, BoltIcon, HomeIcon, Battery50Icon, SunIcon } from '@heroicons/react/24/outline';
 import { executeQuery } from '@/lib/graphql-client';
 import { DEFAULT_SYSTEM_CONFIG } from '@/lib/systemDefaults';
 import { useRouter } from 'next/navigation';
@@ -661,6 +661,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [solarModelR2, setSolarModelR2] = useState<number | null>(null);
   const [batteryConfigs, setBatteryConfigs] = useState<BatteryConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [activeSection, setActiveSection] = useState<'overview' | 'stats' | 'admin' | 'historial'>('overview');
   const [isOffline, setIsOffline] = useState(false);
@@ -808,6 +809,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       ]);
 
       setIsSlowNetwork(false); // Reset slow network if successful
+      setFetchError(null);
       setSolarData(data.solar);
       setWeatherData(data.weather);
       setPredictionsData(data.predictions);
@@ -841,7 +843,13 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         setBatteryConfigs(DEMO_DATA.batteries);
         setLoading(false);
       } else {
-        // For other errors, we might also want to show demo data or just stop loading
+        // Error real (backend caído, GraphQL, etc.): registrar para mostrar un
+        // estado de error con reintento en vez de dejar el spinner girando.
+        setFetchError(
+          error instanceof Error && error.message
+            ? error.message
+            : 'No se pudo conectar con el servidor.'
+        );
         setLoading(false);
       }
     }
@@ -895,12 +903,47 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   }, [weatherData, solarData, weatherOverride]);
 
-  if (loading || !solarData || !weatherData || !predictionsData) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundImage: 'linear-gradient(to bottom right, #e0f2fe, #ffffff, #dbeafe)' }}>
         <div className="text-center">
           <ArrowPathIcon className="w-12 h-12 text-green-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Cargando Gemelo Digital...</p>
+          <p className="text-gray-600 text-lg">Cargando Gemelo Digital…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Estado de error: no hay datos y el fetch falló (backend caído, error GraphQL…).
+  if (!solarData || !weatherData || !predictionsData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: 'linear-gradient(to bottom right, #e0f2fe, #ffffff, #dbeafe)' }}>
+        <div className="max-w-md w-full rounded-3xl border border-red-100 bg-white/80 backdrop-blur p-8 text-center shadow-xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+            <ExclamationTriangleIcon className="h-7 w-7 text-red-500" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">No se pudieron cargar los datos</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            No hay conexión con el servidor del gemelo digital. Verifique que el backend esté en ejecución e inténtelo de nuevo.
+          </p>
+          {fetchError && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 break-words">{fetchError}</p>
+          )}
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button
+              onClick={() => { setLoading(true); fetchData(); }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500"
+            >
+              <ArrowPathIcon className="h-4 w-4" />
+              Reintentar
+            </button>
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -986,6 +1029,53 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-32">
         {activeSection === 'overview' && (
           <>
+            {/* Fila de KPIs principales */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4 mb-2 sm:mb-3">
+              {[
+                {
+                  icon: BoltIcon,
+                  label: 'Producción ahora',
+                  value: `${(solarData.current.production ?? 0).toFixed(1)} kW`,
+                  accent: 'text-emerald-600',
+                  bg: 'bg-emerald-50',
+                },
+                {
+                  icon: HomeIcon,
+                  label: 'Consumo ahora',
+                  value: `${(solarData.current.consumption ?? 0).toFixed(1)} kW`,
+                  accent: 'text-blue-600',
+                  bg: 'bg-blue-50',
+                },
+                {
+                  icon: Battery50Icon,
+                  label: 'Batería',
+                  value: `${Math.round(solarData.battery.chargeLevel ?? 0)} %`,
+                  accent: 'text-purple-600',
+                  bg: 'bg-purple-50',
+                },
+                {
+                  icon: SunIcon,
+                  label: 'Energía hoy',
+                  value: `${(solarData.metrics.dailyProduction ?? 0).toFixed(1)} kWh`,
+                  accent: 'text-amber-600',
+                  bg: 'bg-amber-50',
+                },
+              ].map(({ icon: Icon, label, value, accent, bg }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white/80 backdrop-blur px-4 py-3 shadow-sm"
+                >
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                    <Icon className={`h-5 w-5 ${accent}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] sm:text-xs text-gray-500 truncate">{label}</p>
+                    <p className={`text-lg sm:text-xl font-bold ${accent}`}>{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Diagrama del sistema y Resumen del Clima */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3">
               <div className="lg:col-span-1 lg:pr-4 flex items-center justify-center">
@@ -1047,7 +1137,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         )}
 
         {activeSection === 'historial' && (
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/50 p-6">
+          <div className="rounded-2xl bg-white/80 backdrop-blur border border-gray-100 p-6 shadow-sm">
             <HistorialPanel />
           </div>
         )}

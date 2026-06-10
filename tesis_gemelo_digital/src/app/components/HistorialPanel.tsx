@@ -226,23 +226,23 @@ export default function HistorialPanel() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ChartBarIcon className="h-6 w-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <ChartBarIcon className="h-6 w-6 text-emerald-500" />
             Datos históricos
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 mt-1">
             Serie temporal de producción, consumo y nivel de batería
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Period selector */}
-          <div className="flex items-center gap-2 rounded-xl bg-slate-800 px-3 py-2 border border-slate-700">
+          <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 border border-slate-200">
             <CalendarIcon className="h-4 w-4 text-slate-400" />
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="bg-transparent text-sm text-white outline-none cursor-pointer"
+              className="bg-transparent text-sm text-slate-700 outline-none cursor-pointer"
             >
               <option value={7}>Últimos 7 días</option>
               <option value={14}>Últimos 14 días</option>
@@ -251,7 +251,7 @@ export default function HistorialPanel() {
           </div>
 
           {/* View mode toggle */}
-          <div className="flex rounded-xl bg-slate-800 p-1 border border-slate-700">
+          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
             {(['daily', 'hourly'] as ViewMode[]).map((m) => (
               <button
                 key={m}
@@ -259,7 +259,7 @@ export default function HistorialPanel() {
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                   viewMode === m
                     ? 'bg-emerald-600 text-white shadow'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 {m === 'daily' ? 'Diario' : 'Por hora'}
@@ -271,7 +271,7 @@ export default function HistorialPanel() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm text-white transition disabled:opacity-50 border border-slate-600"
+            className="flex items-center gap-2 rounded-xl bg-white hover:bg-slate-50 px-3 py-2 text-sm text-slate-700 transition disabled:opacity-50 border border-slate-200"
           >
             <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -324,10 +324,10 @@ export default function HistorialPanel() {
           role={seedMessage.type === 'error' ? 'alert' : 'status'}
           className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
             seedMessage.type === 'success'
-              ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
               : seedMessage.type === 'warning'
-                ? 'bg-amber-900/30 border-amber-700/50 text-amber-300'
-                : 'bg-red-900/30 border-red-700/50 text-red-300'
+                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                : 'bg-red-50 border-red-200 text-red-600'
           }`}
         >
           {seedMessage.type === 'success' && <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />}
@@ -341,16 +341,16 @@ export default function HistorialPanel() {
       {viewMode === 'daily' && summaries.length > 0 && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { label: 'Producción total', value: `${totalProduction.toFixed(1)} kWh`, color: 'text-yellow-400' },
-            { label: 'Consumo total', value: `${totalConsumption.toFixed(1)} kWh`, color: 'text-blue-400' },
-            { label: 'CO₂ evitado', value: `${totalCo2.toFixed(1)} kg`, color: 'text-green-400' },
-            { label: 'Batería promedio', value: `${avgBattery.toFixed(1)} %`, color: 'text-purple-400' },
+            { label: 'Producción total', value: `${totalProduction.toFixed(1)} kWh`, color: 'text-yellow-600' },
+            { label: 'Consumo total', value: `${totalConsumption.toFixed(1)} kWh`, color: 'text-blue-600' },
+            { label: 'CO₂ evitado', value: `${totalCo2.toFixed(1)} kg`, color: 'text-green-600' },
+            { label: 'Batería promedio', value: `${avgBattery.toFixed(1)} %`, color: 'text-purple-600' },
           ].map(({ label, value, color }) => (
             <div
               key={label}
-              className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4"
+              className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm"
             >
-              <p className="text-xs text-slate-400 mb-1">{label}</p>
+              <p className="text-xs text-slate-500 mb-1">{label}</p>
               <p className={`text-xl font-bold ${color}`}>{value}</p>
             </div>
           ))}
@@ -359,16 +359,16 @@ export default function HistorialPanel() {
 
       {/* Error */}
       {error && (
-        <div className="rounded-xl bg-red-900/30 border border-red-700/50 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && !error && noData && (
-        <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 py-16 text-center">
-          <ChartBarIcon className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400 font-medium">Sin datos históricos</p>
+        <div className="rounded-xl bg-slate-50 border border-slate-200 py-16 text-center">
+          <ChartBarIcon className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Sin datos históricos</p>
           <p className="text-sm text-slate-500 mt-1 mb-4">
             {isAdmin
               ? 'El sistema aún no ha acumulado lecturas. Use «Generar datos de prueba» para poblar la serie histórica.'
@@ -381,8 +381,8 @@ export default function HistorialPanel() {
       {!noData && (
         <div className="space-y-6">
           {/* Production & Consumption chart */}
-          <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-6">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4">
+          <div className="rounded-2xl bg-white border border-slate-200 p-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-4">
               {viewMode === 'daily'
                 ? 'Producción y consumo diarios (kWh)'
                 : 'Producción y consumo por hora (kW)'}
@@ -390,31 +390,31 @@ export default function HistorialPanel() {
             <ResponsiveContainer width="100%" height={280}>
               {viewMode === 'daily' ? (
                 <BarChart data={dailyChartData} barGap={2} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="fecha" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} unit=" kWh" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="fecha" tick={{ fill: '#64748b', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} unit=" kWh" />
                   <Tooltip
-                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                    labelStyle={{ color: '#cbd5e1' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8 }}
+                    labelStyle={{ color: '#e2e8f0' }}
                   />
-                  <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Legend wrapperStyle={{ color: '#475569', fontSize: 12 }} />
                   <Bar dataKey="Producción" fill="#facc15" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Consumo" fill="#60a5fa" radius={[3, 3, 0, 0]} />
                 </BarChart>
               ) : (
                 <LineChart data={hourlyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis
                     dataKey="time"
-                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    tick={{ fill: '#64748b', fontSize: 10 }}
                     interval={Math.floor(hourlyChartData.length / 10)}
                   />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} unit=" kW" />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 11 }} unit=" kW" />
                   <Tooltip
-                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                    labelStyle={{ color: '#cbd5e1' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8 }}
+                    labelStyle={{ color: '#e2e8f0' }}
                   />
-                  <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Legend wrapperStyle={{ color: '#475569', fontSize: 12 }} />
                   <Line type="monotone" dataKey="Producción" stroke="#facc15" dot={false} strokeWidth={2} />
                   <Line type="monotone" dataKey="Consumo" stroke="#60a5fa" dot={false} strokeWidth={2} />
                 </LineChart>
@@ -423,26 +423,26 @@ export default function HistorialPanel() {
           </div>
 
           {/* Battery level chart */}
-          <div className="rounded-2xl bg-slate-800/60 border border-slate-700/50 p-6">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4">
+          <div className="rounded-2xl bg-white border border-slate-200 p-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-4">
               {viewMode === 'daily' ? 'Nivel de batería promedio (%)' : 'Nivel de batería por hora (%)'}
             </h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={viewMode === 'daily' ? dailyChartData : hourlyChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey={viewMode === 'daily' ? 'fecha' : 'time'}
-                  tick={{ fill: '#94a3b8', fontSize: viewMode === 'daily' ? 11 : 10 }}
+                  tick={{ fill: '#64748b', fontSize: viewMode === 'daily' ? 11 : 10 }}
                   interval={viewMode === 'hourly' ? Math.floor(hourlyChartData.length / 10) : 0}
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tick={{ fill: '#64748b', fontSize: 11 }}
                   unit="%"
                 />
                 <Tooltip
-                  contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                  labelStyle={{ color: '#cbd5e1' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8 }}
+                  labelStyle={{ color: '#334155' }}
                 />
                 <Line
                   type="monotone"
@@ -459,7 +459,7 @@ export default function HistorialPanel() {
 
       <p className="text-xs text-slate-600 text-center">
         Los datos se almacenan automáticamente cada 5 minutos en MongoDB (colección{' '}
-        <code className="bg-slate-800 px-1 rounded">lecturas_historicas</code>)
+        <code className="bg-slate-100 text-slate-700 px-1 rounded">lecturas_historicas</code>)
       </p>
     </div>
   );
