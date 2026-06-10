@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowLeftIcon,
@@ -116,12 +115,6 @@ export default function AjustesLayout({ children }: { children: React.ReactNode 
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Volver al panel
-            </Link>
             <button
               type="button"
               onClick={handleLogout}

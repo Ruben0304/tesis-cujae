@@ -1009,12 +1009,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               >
                 <ArrowPathIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 group-hover:rotate-180 transition-transform duration-500" />
               </button>
-              <button
-                onClick={onLogout}
-                className="rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 sm:px-3 sm:py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-              >
-                Salir
-              </button>
             </div>
           </div>
         </div>
@@ -1040,11 +1034,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       )}
 
       {/* Main Content - Simplificado */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-32">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-32">
         {activeSection === 'overview' && (
           <>
             {/* Diagrama del sistema y Resumen del Clima */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3 pt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-2 sm:mb-3">
               <div className="lg:col-span-1 lg:pr-4 flex items-center justify-center">
                 <SystemDiagram
                   solarKw={currentSolarProduction}
@@ -1110,7 +1104,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         )}
 
         {activeSection === 'admin' && user.role === 'admin' && (
-          <AdminPanel currentUser={user} />
+          <AdminPanel
+            currentUser={user}
+            onBack={() => setActiveSection('overview')}
+            onLogout={onLogout}
+          />
         )}
       </main>
 

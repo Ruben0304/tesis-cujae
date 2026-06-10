@@ -9,10 +9,15 @@ import {
     ClipboardDocumentCheckIcon,
     ArrowPathIcon,
     PlusIcon,
+    CheckIcon,
+    ArrowLeftIcon,
+    ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface AdminPanelProps {
     currentUser: User;
+    onBack?: () => void;
+    onLogout?: () => void;
 }
 
 interface InvitationCode {
@@ -58,19 +63,20 @@ const GENERATE_CODE_MUTATION = `
   }
 `;
 
-export default function AdminPanel({ currentUser }: AdminPanelProps) {
+export default function AdminPanel({ currentUser, onBack, onLogout }: AdminPanelProps) {
     const [users, setUsers] = useState<User[]>([]);
     const [codes, setCodes] = useState<InvitationCode[]>([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [newRole, setNewRole] = useState<'user' | 'admin'>('user');
-    const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const [genError, setGenError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!toast) return;
-        const t = setTimeout(() => setToast(null), 2800);
+        if (!copiedCode) return;
+        const t = setTimeout(() => setCopiedCode(null), 1500);
         return () => clearTimeout(t);
-    }, [toast]);
+    }, [copiedCode]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -95,6 +101,7 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
 
     const handleGenerateCode = async () => {
         setGenerating(true);
+        setGenError(null);
         try {
             await executeMutation(GENERATE_CODE_MUTATION, {
                 role: newRole,
@@ -103,7 +110,7 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
             await fetchData();
         } catch (error) {
             console.error('Error generating code:', error);
-            setToast({ type: 'error', text: 'No se pudo generar el código.' });
+            setGenError('No se pudo generar el código.');
         } finally {
             setGenerating(false);
         }
@@ -112,9 +119,9 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
     const copyToClipboard = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);
-            setToast({ type: 'success', text: `Código ${text} copiado al portapapeles.` });
+            setCopiedCode(text);
         } catch {
-            setToast({ type: 'error', text: 'No se pudo copiar el código.' });
+            /* si el portapapeles no está disponible, no rompemos la UI */
         }
     };
 
@@ -127,35 +134,16 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
     }
 
     return (
-        <div className="space-y-8">
-            {/* Toast de feedback */}
-            {toast && (
-                <div
-                    role={toast.type === 'error' ? 'alert' : 'status'}
-                    className={`fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg ${
-                        toast.type === 'success'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-red-600 text-white'
-                    }`}
-                >
-                    {toast.text}
-                </div>
-            )}
-
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Panel de Administración</h2>
-                    <p className="text-sm text-slate-500">Gestión de usuarios y códigos de acceso</p>
-                </div>
+        <div className="space-y-6">
+            {onBack && (
                 <button
-                    onClick={fetchData}
-                    className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
-                    title="Actualizar datos"
+                    onClick={onBack}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                    <ArrowPathIcon className="h-5 w-5 text-slate-500" />
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Atrás
                 </button>
-            </div>
+            )}
 
             {/* Invitation Codes Section */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -194,6 +182,10 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
                     </div>
                 </div>
 
+                {genError && (
+                    <p className="mb-4 text-sm text-red-600">{genError}</p>
+                )}
+
                 <div className="overflow-hidden rounded-xl border border-slate-200">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-500">
@@ -215,7 +207,14 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
                                             title="Copiar código"
                                         >
                                             {code.code}
-                                            <ClipboardDocumentCheckIcon className="h-4 w-4 opacity-0 transition group-hover:opacity-100" />
+                                            {copiedCode === code.code ? (
+                                                <span className="animate-check-pop inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                                    <CheckIcon className="h-4 w-4" />
+                                                    Copiado
+                                                </span>
+                                            ) : (
+                                                <ClipboardDocumentCheckIcon className="h-4 w-4 opacity-0 transition group-hover:opacity-100" />
+                                            )}
                                         </button>
                                     </td>
                                     <td className="px-4 py-3">
@@ -302,6 +301,27 @@ export default function AdminPanel({ currentUser }: AdminPanelProps) {
                     </table>
                 </div>
             </div>
+
+            {/* Zona de cierre de sesión */}
+            {onLogout && (
+                <div className="rounded-2xl border border-red-200 bg-red-50/40 p-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 className="text-sm font-semibold text-red-700">Cerrar sesión</h3>
+                            <p className="mt-0.5 text-sm text-red-600/80">
+                                Se cerrará tu sesión en este dispositivo. Tendrás que volver a iniciar sesión para acceder.
+                            </p>
+                        </div>
+                        <button
+                            onClick={onLogout}
+                            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-600 hover:bg-red-600 hover:text-white"
+                        >
+                            <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                            Cerrar sesión
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
