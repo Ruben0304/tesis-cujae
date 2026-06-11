@@ -62,6 +62,8 @@ interface PanelFormState {
   quantity: string;
   tiltDegrees: string;
   orientation: string;
+  efficiencyPercent: string;
+  areaM2: string;
 }
 
 interface BatteryFormState {
@@ -70,6 +72,10 @@ interface BatteryFormState {
   model: string;
   capacityKwh: string;
   quantity: string;
+  maxDepthOfDischargePercent: string;
+  chargeRateKw: string;
+  dischargeRateKw: string;
+  efficiencyPercent: string;
 }
 
 interface InverterFormState {
@@ -94,6 +100,8 @@ const emptyPanelForm: PanelFormState = {
   quantity: '',
   tiltDegrees: '',
   orientation: '',
+  efficiencyPercent: '',
+  areaM2: '',
 };
 
 const emptyBatteryForm: BatteryFormState = {
@@ -101,6 +109,10 @@ const emptyBatteryForm: BatteryFormState = {
   model: '',
   capacityKwh: '',
   quantity: '',
+  maxDepthOfDischargePercent: '',
+  chargeRateKw: '',
+  dischargeRateKw: '',
+  efficiencyPercent: '',
 };
 
 const emptyInverterForm: InverterFormState = {
@@ -225,6 +237,9 @@ const toPanelFormState = (panel: SolarPanelConfig): PanelFormState => ({
   quantity: panel.quantity !== undefined ? panel.quantity.toString() : '',
   tiltDegrees: panel.tiltDegrees !== undefined ? panel.tiltDegrees.toString() : '',
   orientation: panel.orientation ?? '',
+  efficiencyPercent:
+    panel.efficiencyPercent !== undefined ? panel.efficiencyPercent.toString() : '',
+  areaM2: panel.areaM2 !== undefined ? panel.areaM2.toString() : '',
 });
 
 const toBatteryFormState = (battery: BatteryConfig): BatteryFormState => ({
@@ -233,6 +248,15 @@ const toBatteryFormState = (battery: BatteryConfig): BatteryFormState => ({
   model: battery.model ?? '',
   capacityKwh: battery.capacityKwh !== undefined ? battery.capacityKwh.toString() : '',
   quantity: battery.quantity !== undefined ? battery.quantity.toString() : '',
+  maxDepthOfDischargePercent:
+    battery.maxDepthOfDischargePercent !== undefined
+      ? battery.maxDepthOfDischargePercent.toString()
+      : '',
+  chargeRateKw: battery.chargeRateKw !== undefined ? battery.chargeRateKw.toString() : '',
+  dischargeRateKw:
+    battery.dischargeRateKw !== undefined ? battery.dischargeRateKw.toString() : '',
+  efficiencyPercent:
+    battery.efficiencyPercent !== undefined ? battery.efficiencyPercent.toString() : '',
 });
 
 const toInverterFormState = (inverter: InverterConfig): InverterFormState => ({
@@ -525,6 +549,8 @@ export default function DevicesView({
       quantity: parseNumber(panelForm.quantity),
       tiltDegrees: parseNumber(panelForm.tiltDegrees),
       orientation: panelForm.orientation.trim() || undefined,
+      efficiencyPercent: parseNumber(panelForm.efficiencyPercent),
+      areaM2: parseNumber(panelForm.areaM2),
     });
 
     try {
@@ -564,6 +590,10 @@ export default function DevicesView({
       model: batteryForm.model.trim() || undefined,
       capacityKwh: parseNumber(batteryForm.capacityKwh),
       quantity: parseNumber(batteryForm.quantity),
+      maxDepthOfDischargePercent: parseNumber(batteryForm.maxDepthOfDischargePercent),
+      chargeRateKw: parseNumber(batteryForm.chargeRateKw),
+      dischargeRateKw: parseNumber(batteryForm.dischargeRateKw),
+      efficiencyPercent: parseNumber(batteryForm.efficiencyPercent),
     });
 
     try {
@@ -1354,6 +1384,29 @@ export default function DevicesView({
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
+              <Field label="Eficiencia del módulo (%)">
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="0.1"
+                  placeholder="Ej. 21.5"
+                  value={panelForm.efficiencyPercent}
+                  onChange={handlePanelInput('efficiencyPercent')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </Field>
+              <Field label="Área del módulo (m²)">
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.01"
+                  placeholder="Ej. 1.95"
+                  value={panelForm.areaM2}
+                  onChange={handlePanelInput('areaM2')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </Field>
             </div>
 
             <div className="flex flex-wrap justify-end gap-3">
@@ -1435,6 +1488,52 @@ export default function DevicesView({
                   required
                   value={batteryForm.quantity}
                   onChange={handleBatteryInput('quantity')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </Field>
+              <Field label="Profundidad máx. de descarga (% DoD)">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  placeholder="Ej. 80"
+                  value={batteryForm.maxDepthOfDischargePercent}
+                  onChange={handleBatteryInput('maxDepthOfDischargePercent')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </Field>
+              <Field label="Eficiencia round-trip (%)">
+                <input
+                  type="number"
+                  min="50"
+                  max="100"
+                  step="0.1"
+                  placeholder="Ej. 92"
+                  value={batteryForm.efficiencyPercent}
+                  onChange={handleBatteryInput('efficiencyPercent')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </Field>
+              <Field label="Tasa máx. de carga (kW)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="Opcional"
+                  value={batteryForm.chargeRateKw}
+                  onChange={handleBatteryInput('chargeRateKw')}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </Field>
+              <Field label="Tasa máx. de descarga (kW)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="Opcional"
+                  value={batteryForm.dischargeRateKw}
+                  onChange={handleBatteryInput('dischargeRateKw')}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                 />
               </Field>

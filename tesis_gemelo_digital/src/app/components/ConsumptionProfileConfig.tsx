@@ -45,9 +45,8 @@ const SAVE_MUTATION = `
     $weekday: [Float!]!
     $weekend: [Float!]!
     $name: String
-    $description: String
   ) {
-    saveConsumptionProfile(weekday: $weekday, weekend: $weekend, name: $name, description: $description) {
+    saveConsumptionProfile(weekday: $weekday, weekend: $weekend, name: $name) {
       _id
       name
       isActive

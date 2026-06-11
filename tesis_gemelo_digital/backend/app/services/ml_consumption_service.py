@@ -145,16 +145,26 @@ class MLConsumptionService:
 
     def get_default_campus_id(self) -> int:
         """
-        Return the default campus_id used during training.
+        Return campus_id to feed the model.
+        Prefers env override (settings.ML_CONSUMPTION_CAMPUS_ID), then the value
+        the model was trained with, then 1.
         """
+        from app.config import settings
+        if settings.ML_CONSUMPTION_CAMPUS_ID is not None:
+            return settings.ML_CONSUMPTION_CAMPUS_ID
         if not self.config:
             return 1
         return self.config.get("campus_id_default", 1)
 
     def get_default_meter_id(self) -> int:
         """
-        Return the default meter_id used during training.
+        Return meter_id to feed the model.
+        Prefers env override (settings.ML_CONSUMPTION_METER_ID), then the value
+        the model was trained with, then 55.
         """
+        from app.config import settings
+        if settings.ML_CONSUMPTION_METER_ID is not None:
+            return settings.ML_CONSUMPTION_METER_ID
         if not self.config:
             return 55
         return self.config.get("meter_id_default", 55)

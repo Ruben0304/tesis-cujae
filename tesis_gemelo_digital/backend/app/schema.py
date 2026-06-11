@@ -201,6 +201,8 @@ class PanelConfigSpec:
     quantity: Optional[int]
     tiltDegrees: Optional[float]
     orientation: Optional[str]
+    efficiencyPercent: Optional[float] = None
+    areaM2: Optional[float] = None
     createdAt: Optional[str]
     updatedAt: Optional[str]
 
@@ -223,6 +225,10 @@ class BatteryConfigSpec:
     model: Optional[str]
     capacityKwh: Optional[float]
     quantity: Optional[int]
+    maxDepthOfDischargePercent: Optional[float] = None
+    chargeRateKw: Optional[float] = None
+    dischargeRateKw: Optional[float] = None
+    efficiencyPercent: Optional[float] = None
     createdAt: Optional[str]
     updatedAt: Optional[str]
 
@@ -329,6 +335,8 @@ class PanelType:
     quantity: int
     tiltDegrees: Optional[float]
     orientation: Optional[str]
+    efficiencyPercent: Optional[float] = None
+    areaM2: Optional[float] = None
     createdAt: Optional[str]
     updatedAt: Optional[str]
 
@@ -340,6 +348,10 @@ class BatteryType:
     model: Optional[str]
     capacityKwh: float
     quantity: int
+    maxDepthOfDischargePercent: Optional[float] = None
+    chargeRateKw: Optional[float] = None
+    dischargeRateKw: Optional[float] = None
+    efficiencyPercent: Optional[float] = None
     createdAt: Optional[str]
     updatedAt: Optional[str]
 
@@ -462,6 +474,14 @@ class MLPredictionType:
     datetime: str
     production_kw: float
     weather: MLWeatherFeaturesType
+    # Fuente de datos meteorológicos usada por el modelo. El ML está entrenado
+    # contra Open-Meteo, así que este campo siempre vale "Open-Meteo".
+    weather_source: str = strawberry.field(name="weatherSource", default="Open-Meteo")
+    # Si la fuente configurada por el usuario es distinta, aquí se devuelve un
+    # aviso para que el frontend lo muestre y no se vea como inconsistencia.
+    weather_source_warning: Optional[str] = strawberry.field(
+        name="weatherSourceWarning", default=None
+    )
 
 
 @strawberry.type
@@ -496,13 +516,19 @@ class MLConsumptionModelInfoType:
     campus_id_default: Optional[int]
     meter_id_default: Optional[int]
     message: Optional[str]
+    # Procedencia del modelo y escalado aplicado a la salida. Permite al frontend
+    # avisar al usuario que la predicción ML proviene de un edificio del CUJAE
+    # y que se reescala por configuración, en lugar de presentarla como un
+    # modelo entrenado para el sistema que está viendo.
+    training_dataset: Optional[str] = strawberry.field(name="trainingDataset")
+    scale_divisor: Optional[float] = strawberry.field(name="scaleDivisor")
+    is_demo: bool = strawberry.field(name="isDemo")
 
 
 @strawberry.type
 class ConsumptionProfileType:
     id_: Optional[str] = strawberry.field(name="_id")
     name: str
-    description: Optional[str]
     weekday: List[float]
     weekend: List[float]
     is_active: bool = strawberry.field(name="isActive")
@@ -793,15 +819,34 @@ def _scale_ml_predictions(
     return scaled_predictions
 
 
+def _to_ml_prediction_type(pred: Dict[str, Any]) -> "MLPredictionType":
+    return MLPredictionType(
+        datetime=pred["datetime"],
+        production_kw=pred["production_kw"],
+        weather=MLWeatherFeaturesType(**pred["weather"]),
+        weather_source=pred.get("weather_source", "Open-Meteo"),
+        weather_source_warning=pred.get("weather_source_warning"),
+    )
+
+
 def _scale_consumption_predictions(
     predictions: List[Dict[str, Any]],
-    divisor: float = 10.0,
+    divisor: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Apply a fixed scaling factor to consumption predictions before returning them.
+    El modelo ML de consumo se entrenó con el medidor 55 del campus CUJAE (un
+    edificio cuyo consumo nominal es ~10× el sistema base del gemelo). Para
+    que la salida sea representativa del sistema simulado, dividimos por un
+    factor de escala configurable (settings.ML_CONSUMPTION_SCALE_DIVISOR).
+    Cuando se reentrena el modelo con datos del propio sitio, este divisor
+    debe ponerse a 1.
     """
     if not predictions:
         return predictions
+
+    if divisor is None:
+        from app.config import settings
+        divisor = settings.ML_CONSUMPTION_SCALE_DIVISOR
 
     if not divisor or divisor == 0:
         return predictions
@@ -1018,14 +1063,7 @@ class Query:
         predictions = await predict_solar_production(datetimes, lat, lon)
         predictions = _scale_ml_predictions(predictions, capacity_kw)
 
-        return [
-            MLPredictionType(
-                datetime=pred["datetime"],
-                production_kw=pred["production_kw"],
-                weather=MLWeatherFeaturesType(**pred["weather"]),
-            )
-            for pred in predictions
-        ]
+        return [_to_ml_prediction_type(pred) for pred in predictions]
 
     @strawberry.field
     async def ml_predict_next_hours(
@@ -1056,14 +1094,7 @@ class Query:
         predictions = await predict_next_hours(hours, lat, lon)
         predictions = _scale_ml_predictions(predictions, capacity_kw)
 
-        return [
-            MLPredictionType(
-                datetime=pred["datetime"],
-                production_kw=pred["production_kw"],
-                weather=MLWeatherFeaturesType(**pred["weather"]),
-            )
-            for pred in predictions
-        ]
+        return [_to_ml_prediction_type(pred) for pred in predictions]
 
     @strawberry.field
     async def ml_predict_date_range(
@@ -1096,14 +1127,7 @@ class Query:
         predictions = await predict_for_date_range(start_date, end_date, lat, lon)
         predictions = _scale_ml_predictions(predictions, capacity_kw)
 
-        return [
-            MLPredictionType(
-                datetime=pred["datetime"],
-                production_kw=pred["production_kw"],
-                weather=MLWeatherFeaturesType(**pred["weather"]),
-            )
-            for pred in predictions
-        ]
+        return [_to_ml_prediction_type(pred) for pred in predictions]
 
     @strawberry.field
     async def ml_predict_for_hours(
@@ -1301,6 +1325,14 @@ class Query:
             Model metadata including accuracy metrics and status
         """
         info = ml_consumption_service.get_model_info()
+        from app.config import settings
+        scale = settings.ML_CONSUMPTION_SCALE_DIVISOR
+        meter = ml_consumption_service.get_default_meter_id()
+        campus = ml_consumption_service.get_default_campus_id()
+        is_demo = (
+            settings.ML_CONSUMPTION_METER_ID is None
+            and settings.ML_CONSUMPTION_CAMPUS_ID is None
+        )
         return MLConsumptionModelInfoType(
             loaded=info.get("loaded", False),
             model_name=info.get("model_name"),
@@ -1309,9 +1341,12 @@ class Query:
             test_mae=info.get("test_mae"),
             features=info.get("features", []),
             training_date=info.get("training_date"),
-            campus_id_default=info.get("campus_id_default"),
-            meter_id_default=info.get("meter_id_default"),
+            campus_id_default=campus,
+            meter_id_default=meter,
             message=info.get("message"),
+            training_dataset=f"CUJAE — campus {campus}, meter {meter}",
+            scale_divisor=scale,
+            is_demo=is_demo,
         )
 
     @strawberry.field
@@ -1374,7 +1409,6 @@ class Query:
         return ConsumptionProfileType(
             id_=p.get("_id"),
             name=p["name"],
-            description=p.get("description"),
             weekday=p["weekday"],
             weekend=p["weekend"],
             is_active=p["isActive"],
@@ -1487,6 +1521,8 @@ class PanelInput:
     quantity: int
     tiltDegrees: Optional[float] = None
     orientation: Optional[str] = None
+    efficiencyPercent: Optional[float] = None
+    areaM2: Optional[float] = None
 
 
 @strawberry.input
@@ -1495,6 +1531,10 @@ class BatteryInput:
     model: Optional[str] = None
     capacityKwh: float
     quantity: int
+    maxDepthOfDischargePercent: Optional[float] = None
+    chargeRateKw: Optional[float] = None
+    dischargeRateKw: Optional[float] = None
+    efficiencyPercent: Optional[float] = None
 
 
 @strawberry.input
@@ -1606,18 +1646,16 @@ class Mutation:
         weekday: List[float],
         weekend: List[float],
         name: Optional[str] = "Perfil principal",
-        description: Optional[str] = "",
     ) -> ConsumptionProfileType:
         """
         Persist a new consumption profile and activate it immediately.
         weekday and weekend must each contain exactly 24 non-negative float values.
         """
         require_admin(info.context)
-        p = save_profile(weekday, weekend, name or "Perfil principal", description or "")
+        p = save_profile(weekday, weekend, name or "Perfil principal")
         return ConsumptionProfileType(
             id_=p.get("_id"),
             name=p["name"],
-            description=p.get("description"),
             weekday=p["weekday"],
             weekend=p["weekend"],
             is_active=p["isActive"],

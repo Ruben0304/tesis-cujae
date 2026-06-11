@@ -110,6 +110,8 @@ export const PANELS_QUERY = `
       quantity
       tiltDegrees
       orientation
+      efficiencyPercent
+      areaM2
       createdAt
       updatedAt
     }
@@ -126,6 +128,8 @@ export const PANEL_QUERY = `
       quantity
       tiltDegrees
       orientation
+      efficiencyPercent
+      areaM2
       createdAt
       updatedAt
     }
@@ -140,6 +144,10 @@ export const BATTERIES_QUERY = `
       model
       capacityKwh
       quantity
+      maxDepthOfDischargePercent
+      chargeRateKw
+      dischargeRateKw
+      efficiencyPercent
       createdAt
       updatedAt
     }
@@ -164,6 +172,10 @@ export const BATTERY_QUERY = `
       model
       capacityKwh
       quantity
+      maxDepthOfDischargePercent
+      chargeRateKw
+      dischargeRateKw
+      efficiencyPercent
       createdAt
       updatedAt
     }
@@ -277,6 +289,10 @@ export const CREATE_PANEL_MUTATION = `
       model
       ratedPowerKw
       quantity
+      tiltDegrees
+      orientation
+      efficiencyPercent
+      areaM2
       createdAt
     }
   }
@@ -290,6 +306,10 @@ export const UPDATE_PANEL_MUTATION = `
       model
       ratedPowerKw
       quantity
+      tiltDegrees
+      orientation
+      efficiencyPercent
+      areaM2
       updatedAt
     }
   }
@@ -309,6 +329,10 @@ export const CREATE_BATTERY_MUTATION = `
       model
       capacityKwh
       quantity
+      maxDepthOfDischargePercent
+      chargeRateKw
+      dischargeRateKw
+      efficiencyPercent
       createdAt
     }
   }
@@ -322,6 +346,10 @@ export const UPDATE_BATTERY_MUTATION = `
       model
       capacityKwh
       quantity
+      maxDepthOfDischargePercent
+      chargeRateKw
+      dischargeRateKw
+      efficiencyPercent
       updatedAt
     }
   }

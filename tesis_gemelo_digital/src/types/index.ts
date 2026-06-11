@@ -93,6 +93,8 @@ export interface SolarPanelConfig {
   quantity: number;             // Número total de paneles instalados
   tiltDegrees?: number;         // Ángulo de inclinación
   orientation?: string;         // Orientación cardinal
+  efficiencyPercent?: number;   // Eficiencia del módulo (%)
+  areaM2?: number;              // Área del módulo (m²)
   createdAt?: string;
   updatedAt?: string;
 }
@@ -103,6 +105,10 @@ export interface BatteryConfig {
   model?: string;
   capacityKwh: number;          // Capacidad por módulo
   quantity: number;             // Número de módulos instalados
+  maxDepthOfDischargePercent?: number; // Profundidad de descarga máxima permitida (%)
+  chargeRateKw?: number;        // Tasa máxima de carga (kW)
+  dischargeRateKw?: number;     // Tasa máxima de descarga (kW)
+  efficiencyPercent?: number;   // Eficiencia round-trip (%)
   createdAt?: string;
   updatedAt?: string;
 }
@@ -234,7 +240,6 @@ export interface BlackoutSchedule {
 export interface ConsumptionProfile {
   _id?: string | null;
   name: string;
-  description?: string | null;
   weekday: number[];   // 24 kW values, one per hour
   weekend: number[];   // 24 kW values, one per hour
   isActive: boolean;

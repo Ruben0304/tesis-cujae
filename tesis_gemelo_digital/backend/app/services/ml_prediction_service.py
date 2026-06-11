@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 import numpy as np
@@ -14,6 +14,7 @@ import pandas as pd
 
 from .ml_model_service import ml_model_service
 from .solar_features import build_features
+from .weather_source_service import get_active_weather_source
 
 
 OPENMETEO_BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -171,6 +172,22 @@ async def predict_solar_production(
     except Exception as e:
         raise RuntimeError(f"Model prediction failed: {e}")
 
+    # El modelo está entrenado contra Open-Meteo: si el usuario configuró otra
+    # fuente, lo declaramos en la respuesta en lugar de aparentar que se honró.
+    warning: Optional[str] = None
+    try:
+        active = get_active_weather_source()
+    except Exception:
+        active = None
+    if active:
+        active_name = (active.get("name") or "").lower()
+        active_provider = (active.get("provider") or "").lower()
+        if "open" not in active_name and "open" not in active_provider:
+            warning = (
+                f"La fuente configurada ('{active.get('name')}') se ignoró: el "
+                "modelo ML de producción se entrenó con datos de Open-Meteo."
+            )
+
     # Format results
     results = []
     for i, (dt, pred_kw) in enumerate(zip(target_datetimes, predictions_kw)):
@@ -183,7 +200,9 @@ async def predict_solar_production(
                 "wind_speed_10m": round(float(features_df.iloc[i]["wind_speed_10m"]), 1),
                 "cloud_cover": round(float(features_df.iloc[i]["cloud_cover"]), 1),
                 "shortwave_radiation": round(float(features_df.iloc[i]["shortwave_radiation"]), 1),
-            }
+            },
+            "weather_source": "Open-Meteo",
+            "weather_source_warning": warning,
         })
 
     return results

@@ -45,6 +45,8 @@ def _map_panel(doc: Dict[str, Any]) -> Dict[str, Any]:
         "quantity": doc.get("quantity"),
         "tiltDegrees": doc.get("tiltDegrees"),
         "orientation": doc.get("orientation"),
+        "efficiencyPercent": doc.get("efficiencyPercent"),
+        "areaM2": doc.get("areaM2"),
         "createdAt": doc.get("createdAt").isoformat() if doc.get("createdAt") else None,
         "updatedAt": doc.get("updatedAt").isoformat() if doc.get("updatedAt") else None,
     }
@@ -91,6 +93,16 @@ def create_panel(payload: Dict[str, Any]) -> Dict[str, Any]:
             else None
         ),
         "orientation": payload.get("orientation"),
+        "efficiencyPercent": (
+            _ensure_positive(payload.get("efficiencyPercent"), "efficiencyPercent")
+            if payload.get("efficiencyPercent") is not None
+            else None
+        ),
+        "areaM2": (
+            _ensure_positive(payload.get("areaM2"), "areaM2")
+            if payload.get("areaM2") is not None
+            else None
+        ),
         "createdAt": now,
         "updatedAt": now,
     }
@@ -115,6 +127,18 @@ def update_panel(panel_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, A
         update["tiltDegrees"] = _ensure_non_negative(payload["tiltDegrees"], "tiltDegrees")
     if "orientation" in payload:
         update["orientation"] = payload.get("orientation")
+    if "efficiencyPercent" in payload:
+        if payload["efficiencyPercent"] is None:
+            update["efficiencyPercent"] = None
+        else:
+            update["efficiencyPercent"] = _ensure_positive(
+                payload["efficiencyPercent"], "efficiencyPercent"
+            )
+    if "areaM2" in payload:
+        if payload["areaM2"] is None:
+            update["areaM2"] = None
+        else:
+            update["areaM2"] = _ensure_positive(payload["areaM2"], "areaM2")
 
     if not update:
         return get_panel(panel_id)

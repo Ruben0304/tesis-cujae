@@ -13,6 +13,7 @@ from .blackout_service import get_blackouts_for_range
 from .system_config import get_system_config
 from .weather_service import get_weather_with_fallback
 from .consumption_profile_service import get_active_profile, predict_from_profile
+from .inverter_service import list_inverters
 
 DEFAULT_PANEL_EFFICIENCY = 0.2
 BLACKOUT_LOAD_FACTOR = 0.6
@@ -62,6 +63,34 @@ def _describe_blackout_window(window: Dict[str, Any]) -> Optional[str]:
     return f"Apagón programado {start_label} - {end_label}"
 
 
+def _resolve_inverter_context() -> Dict[str, float]:
+    """Suma capacidad AC del inversor y eficiencia ponderada por capacidad.
+    Si no hay inversores configurados, se asume sin recorte ni pérdida (legacy).
+    """
+    try:
+        inverters = list_inverters()
+    except Exception:  # pragma: no cover - DB failure fallback
+        inverters = []
+    total_capacity = 0.0
+    weighted_eff = 0.0
+    for inv in inverters:
+        rated = float(inv.get("ratedPowerKw") or 0)
+        qty = float(inv.get("quantity") or 0)
+        cap = rated * qty
+        if cap <= 0:
+            continue
+        eff = inv.get("efficiencyPercent")
+        eff_frac = float(eff) / 100 if eff is not None else 1.0
+        total_capacity += cap
+        weighted_eff += eff_frac * cap
+    if total_capacity <= 0:
+        return {"capacityKw": float("inf"), "efficiency": 1.0}
+    return {
+        "capacityKw": total_capacity,
+        "efficiency": weighted_eff / total_capacity,
+    }
+
+
 def _resolve_solar_context(config: Dict[str, Any]) -> Dict[str, float]:
     solar = config["solar"]
     capacity_kw = solar.get("capacityKw") or 0
@@ -70,10 +99,13 @@ def _resolve_solar_context(config: Dict[str, Any]) -> Dict[str, float]:
     )
     panel_area = solar.get("panelAreaM2") or (solar.get("panelRatedKw") or 0) / max(panel_efficiency, 0.0001)
     array_area = panel_area * (solar.get("panelCount") or 1)
+    inverter = _resolve_inverter_context()
     return {
         "capacityKw": capacity_kw,
         "panelEfficiency": panel_efficiency,
         "arrayAreaM2": array_area,
+        "inverterCapacityKw": inverter["capacityKw"],
+        "inverterEfficiency": inverter["efficiency"],
     }
 
 
@@ -100,16 +132,20 @@ def predict_production(
     hour: int,
     context: Dict[str, float],
 ) -> float:
-    production = (solar_radiation * context["arrayAreaM2"] * context["panelEfficiency"]) / 1000
+    # Potencia DC en el array
+    production_dc = (solar_radiation * context["arrayAreaM2"] * context["panelEfficiency"]) / 1000
     temp_factor = 1 - (temperature - 25) * 0.004
-    production *= temp_factor
+    production_dc *= temp_factor
     cloud_factor = 1 - (cloud_cover / 100) * 0.5
-    production *= cloud_factor
-    production *= _get_hour_efficiency_factor(hour)
-    production = min(production, context["capacityKw"])
+    production_dc *= cloud_factor
+    production_dc *= _get_hour_efficiency_factor(hour)
+    production_dc = min(production_dc, context["capacityKw"])
+    # Conversión DC→AC con derrateo y límite del inversor
+    production_ac = production_dc * context.get("inverterEfficiency", 1.0)
+    production_ac = min(production_ac, context.get("inverterCapacityKw", float("inf")))
     if hour < 6 or hour > 20:
-        production = 0
-    return round(max(0.0, production), 2)
+        production_ac = 0
+    return round(max(0.0, production_ac), 2)
 
 
 def _estimate_hourly_solar_radiation(hour: int, daily_avg: float, cloud_cover: float) -> float:
@@ -231,14 +267,43 @@ def apply_blackout_adjustments(predictions: List[Dict[str, Any]], blackouts: Lis
     return adjusted
 
 
+def _resolve_battery_dynamics(battery: Dict[str, Any]) -> Dict[str, float]:
+    """Extrae DoD, tasas y eficiencia round-trip de la config de batería.
+    Defaults conservadores: sin DoD (100%), sin límite de potencia, eff 100%.
+    """
+    capacity = float(battery.get("capacityKwh") or 0)
+    dod = battery.get("maxDepthOfDischargePercent")
+    soc_min_fraction = max(0.0, 1.0 - (float(dod) / 100)) if dod is not None else 0.0
+    round_trip = battery.get("efficiencyPercent")
+    round_trip_frac = float(round_trip) / 100 if round_trip is not None else 1.0
+    # eff_one_way = sqrt(round_trip): se aplica por igual a carga y descarga.
+    one_way = math.sqrt(max(0.0, min(1.0, round_trip_frac)))
+    return {
+        "capacityKwh": capacity,
+        "socMinKwh": soc_min_fraction * capacity,
+        "chargeRateKw": float(battery.get("chargeRateKw") or 0) or float("inf"),
+        "dischargeRateKw": float(battery.get("dischargeRateKw") or 0) or float("inf"),
+        "effOneWay": one_way,
+    }
+
+
 def build_projected_solar_timeline(
     predictions: List[Dict[str, Any]],
-    battery_capacity_kwh: float,
+    battery: Dict[str, Any],
     initial_battery_level: float = 75,
     blackouts: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     timeline: List[Dict[str, Any]] = []
-    stored_energy = (initial_battery_level / 100) * battery_capacity_kwh
+    dyn = _resolve_battery_dynamics(battery)
+    battery_capacity_kwh = dyn["capacityKwh"]
+    soc_min_kwh = dyn["socMinKwh"]
+    charge_rate = dyn["chargeRateKw"]
+    discharge_rate = dyn["dischargeRateKw"]
+    eff = dyn["effOneWay"]
+
+    # Si el nivel inicial está por debajo del SoC mínimo permitido, súbelo.
+    initial_kwh = (initial_battery_level / 100) * battery_capacity_kwh
+    stored_energy = max(initial_kwh, soc_min_kwh)
     windows = _flatten_blackout_windows(blackouts or [])
 
     for prediction in predictions[:24]:
@@ -252,19 +317,27 @@ def build_projected_solar_timeline(
         blackout_active = any(window["start"] <= timestamp < window["end"] for window in windows)
 
         if net >= 0:
-            available_capacity = battery_capacity_kwh - stored_energy
-            energy_to_battery = min(net, available_capacity)
+            # Excedente: cargar batería respetando tasa y eficiencia.
+            available_capacity = max(0.0, battery_capacity_kwh - stored_energy)
+            grid_input = min(net, charge_rate)               # kW desde el array
+            energy_to_battery = min(grid_input * eff, available_capacity)  # kWh almacenado
             stored_energy += energy_to_battery
             battery_delta = energy_to_battery
-            grid_export = net - energy_to_battery
+            grid_export = net - (energy_to_battery / eff if eff > 0 else 0)
         else:
+            # Déficit: descargar batería respetando DoD, tasa y eficiencia.
             demand = abs(net)
-            energy_from_battery = min(stored_energy, demand)
-            stored_energy -= energy_from_battery
-            battery_delta = -energy_from_battery
-            grid_import = 0.0 if blackout_active else demand - energy_from_battery
+            usable_stored = max(0.0, stored_energy - soc_min_kwh)
+            # Energía que la batería puede entregar al bus, limitada por tasa
+            from_battery_to_bus = min(usable_stored * eff, demand, discharge_rate)
+            # Energía que sale realmente del banco (mayor que la entregada por la pérdida)
+            from_battery_internal = from_battery_to_bus / eff if eff > 0 else 0
+            stored_energy -= from_battery_internal
+            battery_delta = -from_battery_internal
+            grid_import = 0.0 if blackout_active else demand - from_battery_to_bus
 
-        battery_level = max(0.0, min(100.0, (stored_energy / battery_capacity_kwh) * 100))
+        denom = battery_capacity_kwh if battery_capacity_kwh > 0 else 1.0
+        battery_level = max(0.0, min(100.0, (stored_energy / denom) * 100))
         efficiency = max(75.0, min(96.0, 82 + (prediction["confidence"] - 70) * 0.25))
 
         timeline.append(
@@ -484,7 +557,7 @@ async def get_predictions_bundle() -> Dict[str, Any]:
     adjusted_predictions = apply_blackout_adjustments(predictions, blackouts)
     timeline = build_projected_solar_timeline(
         adjusted_predictions,
-        config["battery"]["capacityKwh"],
+        config["battery"],
         75,
         blackouts,
     )

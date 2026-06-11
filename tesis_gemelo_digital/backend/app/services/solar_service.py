@@ -27,7 +27,7 @@ async def get_solar_snapshot() -> Dict[str, Any]:
     predictions = generate_hourly_predictions(weather_data["forecast"], config)
     projected_timeline = build_projected_solar_timeline(
         predictions,
-        config["battery"]["capacityKwh"],
+        config["battery"],
     )
 
     if not projected_timeline:

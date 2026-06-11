@@ -168,7 +168,6 @@ def get_active_profile() -> Dict[str, Any]:
             return {
                 "_id": str(doc["_id"]),
                 "name": doc.get("name", "Perfil activo"),
-                "description": doc.get("description", ""),
                 "weekday": doc.get("weekday", _DEFAULT_WEEKDAY),
                 "weekend": doc.get("weekend", _DEFAULT_WEEKEND),
                 "isActive": True,
@@ -184,7 +183,6 @@ def save_profile(
     weekday: List[float],
     weekend: List[float],
     name: str = "Perfil principal",
-    description: str = "",
 ) -> Dict[str, Any]:
     """
     Persist a new consumption profile and mark it as active.
@@ -201,7 +199,6 @@ def save_profile(
 
     doc = {
         "name": name,
-        "description": description,
         "weekday": [round(float(v), 2) for v in weekday],
         "weekend": [round(float(v), 2) for v in weekend],
         "isActive": True,
@@ -247,10 +244,6 @@ def _default_profile_dict() -> Dict[str, Any]:
     return {
         "_id": None,
         "name": "Perfil por defecto",
-        "description": (
-            f"Perfil estimado, escalado al sistema ({capacity_kw:.0f} kW solar, "
-            f"pico de carga ~{peak_kw:.1f} kW). Configúrelo para su sitio real."
-        ),
         "weekday": _scale_shape(_DEFAULT_WEEKDAY, peak_kw),
         "weekend": _scale_shape(_DEFAULT_WEEKEND, peak_kw),
         "isActive": False,

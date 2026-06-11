@@ -150,7 +150,6 @@ export default function AppliancesManager({
   const [newModeAveragePowerW, setNewModeAveragePowerW] = useState('');
   const [newModeMaxPowerW, setNewModeMaxPowerW] = useState('');
 
-  const [enabledKeys, setEnabledKeys] = useState<Set<string>>(new Set());
   const [runtimeHoursByKey, setRuntimeHoursByKey] = useState<Record<string, number>>({});
   const [selectedModeByKey, setSelectedModeByKey] = useState<Record<string, number | undefined>>({});
 
@@ -161,20 +160,15 @@ export default function AppliancesManager({
   }, [message]);
 
   useEffect(() => {
-    const nextEnabled = new Set<string>();
     const nextRuntime: Record<string, number> = {};
     const nextModes: Record<string, number | undefined> = {};
 
     appliances.forEach((appliance, index) => {
       const key = applianceKey(appliance, index);
-      if (appliance.alwaysOn ?? true) {
-        nextEnabled.add(key);
-      }
       nextRuntime[key] = appliance.activeHours ?? 0;
       nextModes[key] = appliance.selectedModeIndex;
     });
 
-    setEnabledKeys(nextEnabled);
     setRuntimeHoursByKey(nextRuntime);
     setSelectedModeByKey(nextModes);
   }, [appliances]);
@@ -200,7 +194,10 @@ export default function AppliancesManager({
 
     appliances.forEach((appliance, index) => {
       const key = applianceKey(appliance, index);
-      if (!enabledKeys.has(key)) return;
+      // El sumario sólo considera equipos marcados como "siempre encendido"
+      // (que es el estado real persistido). Los modales y la edición permiten
+      // cambiarlo por electrodoméstico.
+      if (!(appliance.alwaysOn ?? true)) return;
 
       const mode = resolveMode(appliance, selectedModeByKey[key]);
       const quantity = appliance.quantity ?? 1;
@@ -227,7 +224,7 @@ export default function AppliancesManager({
       withinInverterAvg: inverterCapacityW <= 0 ? null : averageLoadW <= inverterCapacityW,
       withinInverterMax: inverterCapacityW <= 0 ? null : maxLoadW <= inverterCapacityW,
     };
-  }, [appliances, batteryCapacityWh, enabledKeys, inverterCapacityW, runtimeHoursByKey, selectedModeByKey]);
+  }, [appliances, batteryCapacityWh, inverterCapacityW, runtimeHoursByKey, selectedModeByKey]);
 
   const openModal = (mode: 'create' | 'edit', appliance?: ApplianceConfig) => {
     setModalMode(mode);
@@ -479,7 +476,6 @@ export default function AppliancesManager({
               const averagePowerW = mode?.averagePowerW ?? appliance.averagePowerW;
               const maxPowerW = appliance.measuredPowerW ?? mode?.maxPowerW ?? appliance.maxPowerW;
               const runtimeHours = runtimeHoursByKey[key] ?? appliance.activeHours ?? 0;
-              const isEnabled = enabledKeys.has(key);
               const plannedWh = averagePowerW * (appliance.quantity ?? 1) * runtimeHours;
 
               return (
@@ -510,21 +506,6 @@ export default function AppliancesManager({
                         )}
                       </div>
                     </div>
-                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        onChange={(event) => {
-                          setEnabledKeys((prev) => {
-                            const next = new Set(prev);
-                            if (event.target.checked) next.add(key);
-                            else next.delete(key);
-                            return next;
-                          });
-                        }}
-                      />
-                      Incluir
-                    </label>
                   </header>
 
                   <div className="grid gap-3 sm:grid-cols-2">

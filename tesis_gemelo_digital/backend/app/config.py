@@ -2,6 +2,7 @@
 Application configuration
 """
 import os
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -45,6 +46,20 @@ class Settings:
     JWT_SECRET: str = os.getenv("JWT_SECRET", "gemelo-digital-cujae-secret-key-2024")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_DAYS: int = 7
+
+    # ML de consumo — calibración respecto al sistema configurado.
+    # El modelo se entrenó con datos del medidor 55 del campus CUJAE (un edificio
+    # cuyo consumo nominal es ~10× el sistema base del gemelo). Estos parámetros
+    # permiten reapuntar el modelo a otro medidor y reescalar la salida.
+    ML_CONSUMPTION_CAMPUS_ID: Optional[int] = (
+        int(os.getenv("ML_CONSUMPTION_CAMPUS_ID")) if os.getenv("ML_CONSUMPTION_CAMPUS_ID") else None
+    )
+    ML_CONSUMPTION_METER_ID: Optional[int] = (
+        int(os.getenv("ML_CONSUMPTION_METER_ID")) if os.getenv("ML_CONSUMPTION_METER_ID") else None
+    )
+    ML_CONSUMPTION_SCALE_DIVISOR: float = float(
+        os.getenv("ML_CONSUMPTION_SCALE_DIVISOR", "10.0")
+    )
 
 
 settings = Settings()
