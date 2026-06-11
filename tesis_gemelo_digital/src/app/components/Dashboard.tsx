@@ -1026,6 +1026,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                   solarKw={currentSolarProduction}
                   batteryKwh={solarData.config.battery.capacityKwh}
                   consumptionKw={solarData.current.consumption}
+                  isAdmin={user.role === 'admin'}
                 />
               </div>
               <div className="lg:col-span-1 flex flex-col gap-6">

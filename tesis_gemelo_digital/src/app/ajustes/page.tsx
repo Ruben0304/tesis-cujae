@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BatteryCharging, Info, Layers, Power, Settings2, BarChart2, MapPin, FileDown } from 'lucide-react';
+import { BatteryCharging, Info, Layers, Power, Settings2, BarChart2, MapPin, FileDown, Sun } from 'lucide-react';
 import { canAccessModule, moduleKeyFromPath } from '@/lib/permissions';
 
 const sections = [
@@ -53,6 +53,12 @@ const sections = [
     title: 'Exportar reportes',
     subtitle: 'Descargar datos en CSV o PDF profesional',
     icon: <FileDown className="h-5 w-5 text-sky-600" />,
+  },
+  {
+    href: '/ajustes/sombras',
+    title: 'Configurar sombra',
+    subtitle: 'Simulador 3D de sombras sobre paneles solares',
+    icon: <Sun className="h-5 w-5 text-orange-500" />,
   },
 ] as const;
 

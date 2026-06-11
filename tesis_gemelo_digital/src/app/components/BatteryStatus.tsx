@@ -13,7 +13,6 @@ import {
   Loader2,
   X,
   FlaskConical,
-  Sun,
 } from 'lucide-react';
 
 interface BatteryStatusProps {
@@ -199,14 +198,6 @@ export default function BatteryStatus({ batteries }: BatteryStatusProps) {
         >
           <FlaskConical className="w-4 h-4" />
           Simular escenario
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push('/simulador-sombras')}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
-        >
-          <Sun className="w-4 h-4" />
-          Simular sombras 3D
         </button>
       </div>
 

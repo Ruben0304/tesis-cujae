@@ -1776,18 +1776,20 @@ class Mutation:
 
     @strawberry.mutation(name="uploadApplianceMeasurement")
     def upload_appliance_measurement_mutation(
-        self, id: str, fileContent: str
+        self, info: strawberry.types.Info, id: str, fileContent: str
     ) -> ApplianceType:
         """
         Attach a power-meter export (TSV/CSV) to an appliance. The file is
         parsed and converted into a 168-hour (weekday x hour) average kW
         profile used to forecast future consumption.
         """
+        require_admin(info.context)
         appliance = attach_measurement(id, fileContent)
         return _map_appliance(appliance)
 
     @strawberry.mutation(name="clearApplianceMeasurement")
-    def clear_appliance_measurement_mutation(self, id: str) -> ApplianceType:
+    def clear_appliance_measurement_mutation(self, info: strawberry.types.Info, id: str) -> ApplianceType:
+        require_admin(info.context)
         appliance = clear_measurement(id)
         if not appliance:
             raise ValueError("Electrodoméstico no encontrado.")
@@ -1904,9 +1906,11 @@ class Mutation:
     @strawberry.mutation(name="testWeatherSource")
     async def test_weather_source_mutation(
         self,
+        info: strawberry.types.Info,
         input: WeatherSourceInput,
         useMock: bool = False,
     ) -> WeatherSourceTestResultType:
+        require_admin(info.context)
         config = get_system_config()
         result = await test_weather_source(
             source_payload=input.__dict__,

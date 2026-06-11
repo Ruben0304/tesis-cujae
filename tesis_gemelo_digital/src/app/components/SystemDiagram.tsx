@@ -6,6 +6,7 @@ interface Props {
   solarKw: number;
   batteryKwh: number;
   consumptionKw: number;
+  isAdmin?: boolean;
 }
 
 // Flecha solar: label encima del panel, flecha recta vertical hacia abajo
@@ -40,7 +41,7 @@ function EditIcon() {
   );
 }
 
-export default function SystemDiagram({ solarKw, batteryKwh, consumptionKw }: Props) {
+export default function SystemDiagram({ solarKw, batteryKwh, consumptionKw, isAdmin = false }: Props) {
   const router = useRouter();
   const solarText = solarKw % 1 === 0 ? `${solarKw} kW`         : `${solarKw.toFixed(1)} kW`;
   const battText  = batteryKwh % 1 === 0 ? `${batteryKwh} kWh`  : `${batteryKwh.toFixed(1)} kWh`;
@@ -58,7 +59,7 @@ export default function SystemDiagram({ solarKw, batteryKwh, consumptionKw }: Pr
         className="w-full h-auto rounded-xl block"
       />
 
-      {EDIT_BUTTONS.map(({ left, top, href }) => (
+      {isAdmin && EDIT_BUTTONS.map(({ left, top, href }) => (
         <button
           key={href}
           onClick={() => router.push(href)}

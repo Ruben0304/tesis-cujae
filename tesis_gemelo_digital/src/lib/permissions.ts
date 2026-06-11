@@ -20,7 +20,8 @@ export type SettingsModuleKey =
   | 'consumo'
   | 'clima'
   | 'ubicacion'
-  | 'reportes';
+  | 'reportes'
+  | 'sombras';
 
 const SETTINGS_MODULE_ROLES: Record<SettingsModuleKey, Role[]> = {
   paneles: ['admin'],
@@ -31,6 +32,7 @@ const SETTINGS_MODULE_ROLES: Record<SettingsModuleKey, Role[]> = {
   clima: ['admin'],
   ubicacion: ['admin'],
   reportes: ['admin', 'user'],
+  sombras: ['admin'],
 };
 
 /** ¿El rol indicado puede acceder al módulo de Ajustes dado? */

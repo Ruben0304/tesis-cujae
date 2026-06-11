@@ -2,10 +2,15 @@
 FastAPI application with GraphQL endpoint using Strawberry
 """
 import asyncio
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from strawberry.fastapi import GraphQLRouter
 from contextlib import asynccontextmanager
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.schema import schema
 from app.config import settings
@@ -14,6 +19,8 @@ from app.auth import get_context
 from app.services.panel_classifier_service import panel_classifier_service
 from app.services.ml_model_service import ml_model_service
 from app.services.ml_consumption_service import ml_consumption_service
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
 
 async def _periodic_snapshot_saver():
@@ -101,6 +108,16 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"error": "Demasiadas solicitudes. Por favor espera un momento antes de continuar."},
+    )
 
 # Configure CORS
 app.add_middleware(
