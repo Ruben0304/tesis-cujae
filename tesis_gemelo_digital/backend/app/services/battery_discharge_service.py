@@ -17,6 +17,43 @@ from .system_config import get_system_config
 LOCAL_TZ = ZoneInfo("America/Havana")
 
 
+def simulate_battery_depletion(
+    production_kw_series: List[float],
+    consumption_kw_series: List[float],
+    battery_capacity_kwh: float,
+    start_level_kwh: Optional[float] = None,
+) -> Optional[int]:
+    """
+    Simula hora a hora el nivel de la batería y devuelve los minutos
+    transcurridos hasta que se agota, o None si nunca se agota.
+
+    Esta función es pura (sin efectos secundarios) y testeable sin BD ni ML.
+
+    Args:
+        production_kw_series: Producción solar en kW para cada hora.
+        consumption_kw_series: Consumo en kW para cada hora.
+        battery_capacity_kwh: Capacidad total de la batería en kWh.
+        start_level_kwh: Nivel inicial de la batería (por defecto: capacidad completa).
+
+    Returns:
+        Minutos hasta que la batería llega a 0, o None si siempre queda energía.
+    """
+    if battery_capacity_kwh <= 0:
+        raise ValueError("La capacidad de la batería debe ser mayor que cero.")
+
+    level = start_level_kwh if start_level_kwh is not None else battery_capacity_kwh
+
+    for i, (prod_kw, cons_kw) in enumerate(
+        zip(production_kw_series, consumption_kw_series)
+    ):
+        level += prod_kw - cons_kw
+        level = max(0.0, min(battery_capacity_kwh, level))
+        if level <= 0:
+            return (i + 1) * 60
+
+    return None
+
+
 async def calculate_battery_discharge_time(
     start_hour: int,
     date: Optional[str] = None
@@ -116,33 +153,12 @@ async def calculate_battery_discharge_time(
         all_production = all_production[:min_len]
         all_consumption = all_consumption[:min_len]
 
-    # Simulate battery discharge/charge
-    battery_level_kwh = battery_capacity_kwh  # Start at 100%
-    minutes_to_empty = None
-
-    for i, (prod, cons) in enumerate(zip(all_production, all_consumption)):
-        # prod["production_kw"] es el factor de capacidad (0-1) -> a kW reales
-        production_kw = prod["production_kw"] * production_scale
-        consumption_kw = cons["consumption_kw"]
-
-        # Calculate energy balance for this hour (in kWh)
-        balance_kwh = production_kw - consumption_kw
-
-        # Update battery level
-        battery_level_kwh += balance_kwh
-
-        # Clamp battery level between 0 and capacity
-        if battery_level_kwh > battery_capacity_kwh:
-            battery_level_kwh = battery_capacity_kwh
-        elif battery_level_kwh < 0:
-            battery_level_kwh = 0
-
-        # Check if battery is empty
-        elapsed_minutes = (i + 1) * 60  # Each iteration is 1 hour
-
-        if minutes_to_empty is None and battery_level_kwh <= 0:
-            minutes_to_empty = elapsed_minutes
-            break  # No need to continue once empty
+    # Simulate battery discharge/charge using the pure helper
+    prod_kw_list = [p["production_kw"] * production_scale for p in all_production]
+    cons_kw_list = [c["consumption_kw"] for c in all_consumption]
+    minutes_to_empty = simulate_battery_depletion(
+        prod_kw_list, cons_kw_list, battery_capacity_kwh
+    )
 
     return {
         "minutesToEmpty": minutes_to_empty,
