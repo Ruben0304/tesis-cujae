@@ -665,6 +665,8 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [activeSection, setActiveSection] = useState<'overview' | 'stats' | 'admin' | 'historial'>('overview');
+  const [lastManualRefresh, setLastManualRefresh] = useState<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   // Permite llegar a una sección concreta vía URL (p. ej. al volver desde /ajustes
   // con la barra inferior, o el redirect legado /configuracion → /?section=...).
@@ -887,6 +889,18 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Countdown timer for manual refresh cooldown
+  useEffect(() => {
+    if (refreshCooldown <= 0) return;
+    const t = setInterval(() => {
+      setRefreshCooldown((prev) => {
+        if (prev <= 1) { clearInterval(t); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [refreshCooldown]);
+
   // Update background gradient based on weather and time
   useEffect(() => {
     // Priority to manual override
@@ -991,7 +1005,44 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 50 kW · 100 kWh · La Habana, Cuba
               </p>
             </div>
-            <UserMenu user={user} onLogout={onLogout} />
+            <div className="flex items-center gap-3">
+              {activeSection === 'overview' && (
+                <button
+                  onClick={() => {
+                    if (refreshCooldown > 0) return;
+                    setLastManualRefresh(Date.now());
+                    setRefreshCooldown(60);
+                    setLoading(true);
+                    fetchData();
+                  }}
+                  disabled={refreshCooldown > 0}
+                  title={refreshCooldown > 0 ? `Disponible en ${refreshCooldown}s` : 'Actualizar datos'}
+                  className={`
+                    relative flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium
+                    transition-all duration-200 select-none
+                    ${refreshCooldown > 0
+                      ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                      : 'cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 active:scale-95 shadow-sm hover:shadow'}
+                  `}
+                >
+                  <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">
+                    {refreshCooldown > 0 ? `${refreshCooldown}s` : 'Actualizar'}
+                  </span>
+                  {refreshCooldown > 0 && (
+                    <svg className="absolute inset-0 w-full h-full rounded-xl" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ pointerEvents: 'none' }}>
+                      <rect
+                        x="0" y="0" width="100" height="100" rx="12" ry="12"
+                        fill="none" stroke="#3b82f6" strokeWidth="2" strokeOpacity="0.25"
+                        strokeDasharray={`${((60 - refreshCooldown) / 60) * 280} 280`}
+                        style={{ transition: 'stroke-dasharray 1s linear' }}
+                      />
+                    </svg>
+                  )}
+                </button>
+              )}
+              <UserMenu user={user} onLogout={onLogout} />
+            </div>
           </div>
         </div>
       </header>
