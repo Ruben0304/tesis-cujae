@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { executeMutation } from '@/lib/graphql-client';
-import { ArrowRightIcon, ArrowLeftIcon, CheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, ArrowLeftIcon, CheckIcon, ArrowPathIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 // Lazy-load Leaflet map (client-only, no SSR)
 const MapPicker = dynamic(() => import('./MapPicker'), {
@@ -46,6 +46,12 @@ const CREATE_BATTERY_MUTATION = `
   }
 `;
 
+const CREATE_APPLIANCE_MUTATION = `
+  mutation CreateAppliance($input: ApplianceInput!) {
+    createAppliance(input: $input) { _id }
+  }
+`;
+
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
 const LOCATION_PRESETS = [
@@ -60,6 +66,23 @@ const LOCATION_PRESETS = [
 ];
 
 const ORIENTATIONS = ['Sur', 'Sureste', 'Suroeste', 'Este', 'Oeste', 'Norte'];
+
+const APPLIANCE_PRESETS = [
+  { name: 'Refrigerador',       category: 'Refrigeración',  avg: 150,  max: 400 },
+  { name: 'Aire acondicionado', category: 'Climatización',  avg: 1200, max: 1800 },
+  { name: 'Televisor',          category: 'Entretenimiento', avg: 80,  max: 120 },
+  { name: 'Iluminación LED',    category: 'Iluminación',    avg: 60,   max: 60 },
+  { name: 'Lavadora',           category: 'Lavandería',     avg: 500,  max: 1300 },
+];
+
+interface ApplianceDraft {
+  name: string;
+  category?: string;
+  averagePowerW: number;
+  maxPowerW: number;
+  quantity: number;
+  activeHours?: number;
+}
 
 // Apple-inspired palette
 const C = {
@@ -107,6 +130,44 @@ function useAnimatedNumber(value: number, duration = 400) {
   return display;
 }
 
+// ─── Mouse parallax ───────────────────────────────────────────────────────────
+// Smoothed pointer tracking exposed as CSS vars (--px / --py, range -1..1) so
+// each background layer can translate at its own depth without re-rendering.
+
+function useParallax() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let targetX = 0, targetY = 0, curX = 0, curY = 0, raf = 0;
+
+    const onMove = (e: PointerEvent) => {
+      targetX = (e.clientX / window.innerWidth) * 2 - 1;
+      targetY = (e.clientY / window.innerHeight) * 2 - 1;
+    };
+
+    const tick = () => {
+      curX += (targetX - curX) * 0.055;
+      curY += (targetY - curY) * 0.055;
+      el.style.setProperty('--px', curX.toFixed(4));
+      el.style.setProperty('--py', curY.toFixed(4));
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: true });
+    raf = requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  return ref;
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -115,40 +176,45 @@ interface Props {
 
 type Direction = 'forward' | 'backward' | 'none';
 
-// ─── Reusable form components ─────────────────────────────────────────────────
+// ─── UI primitives ────────────────────────────────────────────────────────────
+// Labels are a single fixed-height line and hints go BELOW the input, so the
+// inputs of a two-column row always sit on the same baseline.
 
 function Field({
-  label, description, children, delay = 0, required,
+  label, hint, children, delay = 0, required,
 }: {
-  label: string; description?: string; children: React.ReactNode; delay?: number; required?: boolean;
+  label: string; hint?: string; children: React.ReactNode; delay?: number; required?: boolean;
 }) {
   return (
-    <div className="wiz-stagger" style={{ animationDelay: `${delay}ms` }}>
+    <div className="wiz-stagger" style={{ animationDelay: `${delay}ms`, minWidth: 0 }}>
       <label
         style={{
           display: 'flex',
           alignItems: 'baseline',
           gap: 6,
-          fontSize: 13.5,
+          fontSize: 13,
           fontWeight: 500,
           color: C.text,
-          marginBottom: description ? 4 : 8,
-          lineHeight: 1.3,
+          marginBottom: 7,
+          lineHeight: '18px',
+          height: 18,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
         }}
       >
         {label}
         {required && (
-          <span style={{ fontSize: 12, color: C.text4, fontWeight: 400 }}>
-            (requerido)
+          <span style={{ fontSize: 11.5, color: C.text4, fontWeight: 400 }}>
+            requerido
           </span>
         )}
       </label>
-      {description && (
-        <p style={{ fontSize: 12.5, color: C.text3, lineHeight: 1.45, marginBottom: 8 }}>
-          {description}
+      {children}
+      {hint && (
+        <p style={{ fontSize: 12, color: C.text4, lineHeight: 1.45, marginTop: 6 }}>
+          {hint}
         </p>
       )}
-      {children}
     </div>
   );
 }
@@ -172,13 +238,14 @@ function Input({
       className="wiz-input"
       style={{
         width: '100%',
+        height: 44,
         fontFamily: FONT_STACK,
         fontSize: 15,
         color: C.text,
         background: C.bg,
         border: `1px solid ${C.border}`,
         borderRadius: 10,
-        padding: '11px 14px',
+        padding: '0 14px',
         outline: 'none',
         transition: 'all 0.15s ease',
       }}
@@ -199,13 +266,14 @@ function Select({
         className="wiz-input"
         style={{
           width: '100%',
+          height: 44,
           fontFamily: FONT_STACK,
           fontSize: 15,
           color: C.text,
           background: C.bg,
           border: `1px solid ${C.border}`,
           borderRadius: 10,
-          padding: '11px 38px 11px 14px',
+          padding: '0 38px 0 14px',
           outline: 'none',
           transition: 'all 0.15s ease',
           appearance: 'none',
@@ -244,8 +312,6 @@ function SectionLabel({ children, delay = 0 }: { children: React.ReactNode; dela
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        marginTop: 4,
-        marginBottom: -4,
       }}
     >
       <span
@@ -259,41 +325,41 @@ function SectionLabel({ children, delay = 0 }: { children: React.ReactNode; dela
       >
         {children}
       </span>
-      <div style={{ flex: 1, height: 1, background: C.borderLight }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(29,29,31,0.08)' }} />
     </div>
   );
 }
 
 function PrimaryButton({
-  onClick, loading, disabled, children, delay = 0,
+  onClick, loading, disabled, children,
 }: {
   onClick: () => void; loading?: boolean; disabled?: boolean;
-  children: React.ReactNode; delay?: number;
+  children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={loading || disabled}
-      className="wiz-stagger wiz-btn-primary"
+      className="wiz-btn-primary"
       style={{
-        animationDelay: `${delay}ms`,
-        width: '100%',
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
         fontFamily: FONT_STACK,
-        fontSize: 15,
+        fontSize: 14.5,
         fontWeight: 500,
         color: C.white,
         background: C.dark,
         borderRadius: 10,
-        padding: '13px 22px',
+        padding: '0 22px',
+        height: 44,
         border: 'none',
         cursor: loading || disabled ? 'not-allowed' : 'pointer',
         opacity: loading || disabled ? 0.4 : 1,
         boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
         transition: 'all 0.18s ease',
+        whiteSpace: 'nowrap',
       }}
     >
       {loading ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : children}
@@ -301,86 +367,246 @@ function PrimaryButton({
   );
 }
 
-function SkipLink({ onClick, delay = 0, label = 'Omitir este paso' }: { onClick: () => void; delay?: number; label?: string }) {
+function GhostButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className="wiz-stagger wiz-link"
+      className="wiz-btn-ghost"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 7,
+        fontFamily: FONT_STACK,
+        fontSize: 14,
+        fontWeight: 500,
+        color: C.text2,
+        background: 'rgba(29,29,31,0.05)',
+        borderRadius: 10,
+        padding: '0 16px',
+        height: 44,
+        border: 'none',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Footer actions ───────────────────────────────────────────────────────────
+// Single consistent action row: back on the left, skip + primary on the right.
+
+function FooterActions({
+  onBack, onSkip, skipLabel = 'Omitir este paso', primaryLabel, onPrimary, loading, delay = 0,
+}: {
+  onBack?: () => void; onSkip?: () => void; skipLabel?: string;
+  primaryLabel: React.ReactNode; onPrimary: () => void; loading?: boolean; delay?: number;
+}) {
+  return (
+    <div
+      className="wiz-stagger"
       style={{
         animationDelay: `${delay}ms`,
-        width: '100%',
-        fontFamily: FONT_STACK,
-        fontSize: 13.5,
-        fontWeight: 400,
-        color: C.blue,
-        padding: '10px 0',
-        background: 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        transition: 'color 0.15s ease',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="wiz-back-btn"
-      style={{
-        position: 'absolute',
-        top: 22,
-        left: 22,
-        width: 34,
-        height: 34,
-        borderRadius: 999,
-        background: C.bgChip,
-        color: C.text2,
-        border: 'none',
+        marginTop: 34,
+        paddingTop: 22,
+        borderTop: '1px solid rgba(29,29,31,0.08)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        zIndex: 10,
-        transition: 'all 0.15s ease',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
       }}
-      aria-label="Volver"
     >
-      <ArrowLeftIcon className="w-4 h-4" strokeWidth={2.2} />
-    </button>
+      <div>
+        {onBack && (
+          <GhostButton onClick={onBack}>
+            <ArrowLeftIcon className="w-4 h-4" strokeWidth={2.2} />
+            Atrás
+          </GhostButton>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        {onSkip && (
+          <button onClick={onSkip} className="wiz-link" style={{ fontFamily: FONT_STACK }}>
+            {skipLabel}
+          </button>
+        )}
+        <PrimaryButton onClick={onPrimary} loading={loading}>
+          {primaryLabel}
+        </PrimaryButton>
+      </div>
+    </div>
   );
 }
 
-function ProgressIndicator({ step }: { step: number }) {
-  const labels = ['Ubicación', 'Paneles', 'Baterías'];
+// ─── Step rail (left sidebar) ─────────────────────────────────────────────────
+
+const RAIL_STEPS = [
+  { n: 1, title: 'Ubicación', sub: 'Sitio de la instalación' },
+  { n: 2, title: 'Paneles', sub: 'Arreglo fotovoltaico' },
+  { n: 3, title: 'Baterías', sub: 'Almacenamiento' },
+  { n: 4, title: 'Consumo', sub: 'Equipos eléctricos' },
+];
+
+function StepRail({ step }: { step: number }) {
   return (
-    <div style={{ width: '100%', marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+    <aside
+      className="wiz-rail"
+      style={{
+        width: 272,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '38px 32px 30px',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.25) 100%)',
+        borderRight: '1px solid rgba(29,29,31,0.07)',
+      }}
+    >
+      {/* Brand */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 11,
+            background: 'linear-gradient(150deg, #2c2c2e 0%, #111113 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px -3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.18)',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.7" strokeLinecap="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7" />
+          </svg>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 14.5, fontWeight: 600, color: C.text, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+            Gemelo digital
+          </p>
+          <p style={{ fontSize: 12, color: C.text4, marginTop: 2 }}>
+            Configuración inicial
+          </p>
+        </div>
+      </div>
+
+      {/* Steps */}
+      <div style={{ flex: 1, paddingTop: 44 }}>
+        {RAIL_STEPS.map((s, i) => {
+          const done = step > s.n;
+          const active = step === s.n;
+          const last = i === RAIL_STEPS.length - 1;
+          return (
+            <div key={s.n} style={{ display: 'flex', gap: 14 }}>
+              {/* Circle + connector */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 999,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    transition: 'all 0.35s ease',
+                    ...(done
+                      ? { background: C.green, color: C.white, boxShadow: '0 3px 8px -2px rgba(52,199,89,0.5)' }
+                      : active
+                        ? { background: C.dark, color: C.white, boxShadow: '0 0 0 4px rgba(29,29,31,0.09)' }
+                        : { background: 'rgba(255,255,255,0.7)', border: `1px solid ${C.border}`, color: C.text4 }),
+                  }}
+                >
+                  {done ? <CheckIcon className="w-3.5 h-3.5" strokeWidth={3} /> : s.n}
+                </div>
+                {!last && (
+                  <div
+                    style={{
+                      width: 1.5,
+                      flex: 1,
+                      minHeight: 26,
+                      margin: '7px 0',
+                      borderRadius: 999,
+                      background: done ? 'rgba(52,199,89,0.45)' : 'rgba(29,29,31,0.1)',
+                      transition: 'background 0.35s ease',
+                    }}
+                  />
+                )}
+              </div>
+              {/* Labels */}
+              <div style={{ paddingBottom: last ? 0 : 30, paddingTop: 3, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: active ? 600 : 500,
+                    color: active || done ? C.text : C.text3,
+                    lineHeight: 1.25,
+                    transition: 'color 0.3s ease',
+                  }}
+                >
+                  {s.title}
+                </p>
+                <p style={{ fontSize: 11.5, color: C.text4, marginTop: 3, lineHeight: 1.35 }}>
+                  {s.sub}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Rail footer */}
+      <p
+        style={{
+          fontSize: 10.5,
+          fontWeight: 500,
+          color: C.text4,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+        }}
+      >
+        CUJAE · La Habana
+      </p>
+    </aside>
+  );
+}
+
+// ─── Compact progress (mobile, rail hidden) ───────────────────────────────────
+
+function ProgressIndicator({ step }: { step: number }) {
+  const labels = ['Ubicación', 'Paneles', 'Baterías', 'Consumo'];
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         {labels.map((label, idx) => {
           const n = idx + 1;
           const filled = step >= n;
           const active = step === n;
           return (
             <div key={n} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-              <div
-                style={{
-                  width: '100%',
-                  height: 3,
-                  borderRadius: 999,
-                  background: filled ? C.dark : C.borderLight,
-                  transition: 'background 0.5s ease',
-                }}
-              />
+              <div style={{ width: '100%', height: 3, borderRadius: 999, background: 'rgba(29,29,31,0.1)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: filled ? '100%' : '0%',
+                    borderRadius: 999,
+                    background: C.dark,
+                    transition: 'width 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
+                />
+              </div>
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: active ? 600 : 500,
                   color: filled ? C.text : C.text4,
                   letterSpacing: '0.02em',
-                  transition: 'color 0.3s ease',
                 }}
               >
                 {n}. {label}
@@ -393,13 +619,15 @@ function ProgressIndicator({ step }: { step: number }) {
   );
 }
 
+// ─── Step header ──────────────────────────────────────────────────────────────
+
 function StepHeader({
   eyebrow, title, description,
 }: {
   eyebrow: string; title: string; description: string;
 }) {
   return (
-    <div style={{ marginBottom: 28 }}>
+    <div style={{ marginBottom: 30 }}>
       <p
         className="wiz-stagger"
         style={{
@@ -418,7 +646,7 @@ function StepHeader({
         className="wiz-stagger"
         style={{
           animationDelay: '60ms',
-          fontSize: 26,
+          fontSize: 27,
           fontWeight: 600,
           color: C.text,
           letterSpacing: '-0.02em',
@@ -435,10 +663,43 @@ function StepHeader({
           fontSize: 14.5,
           color: C.text2,
           lineHeight: 1.55,
+          maxWidth: 560,
         }}
       >
         {description}
       </p>
+    </div>
+  );
+}
+
+// ─── Summary strip (live totals) ──────────────────────────────────────────────
+
+function SummaryStrip({
+  label, value, unit, delay = 0,
+}: {
+  label: string; value: string; unit: string; delay?: number;
+}) {
+  return (
+    <div
+      className="wiz-stagger"
+      style={{
+        animationDelay: `${delay}ms`,
+        marginTop: 26,
+        background: 'rgba(29,29,31,0.035)',
+        border: '1px solid rgba(29,29,31,0.07)',
+        borderRadius: 12,
+        padding: '15px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        gap: 12,
+      }}
+    >
+      <span style={{ fontSize: 13, color: C.text3 }}>{label}</span>
+      <span style={{ fontSize: 19, fontWeight: 600, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+        {value}
+        <span style={{ fontSize: 13, fontWeight: 500, color: C.text3, marginLeft: 5 }}>{unit}</span>
+      </span>
     </div>
   );
 }
@@ -448,31 +709,40 @@ function StepHeader({
 function WelcomeContent({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
   return (
     <div>
-      <p
+      <div
         className="wiz-stagger"
         style={{
           animationDelay: '0ms',
-          fontSize: 11.5,
-          fontWeight: 600,
-          color: C.green,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          marginBottom: 12,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 13px',
+          borderRadius: 999,
+          background: 'rgba(52,199,89,0.09)',
+          border: '1px solid rgba(52,199,89,0.22)',
+          marginBottom: 22,
         }}
       >
-        Asistente de configuración
-      </p>
+        <span
+          className="wiz-pulse-dot"
+          style={{ width: 6, height: 6, borderRadius: 999, background: C.green, flexShrink: 0 }}
+        />
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.greenDark, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          Asistente de configuración
+        </span>
+      </div>
 
       <h1
         className="wiz-stagger"
         style={{
           animationDelay: '60ms',
-          fontSize: 32,
+          fontSize: 38,
           fontWeight: 600,
           color: C.text,
-          letterSpacing: '-0.025em',
-          lineHeight: 1.1,
-          marginBottom: 14,
+          letterSpacing: '-0.028em',
+          lineHeight: 1.08,
+          marginBottom: 16,
+          maxWidth: 520,
         }}
       >
         Configure su sistema fotovoltaico
@@ -482,116 +752,66 @@ function WelcomeContent({ onStart, onSkip }: { onStart: () => void; onSkip: () =
         className="wiz-stagger"
         style={{
           animationDelay: '120ms',
-          fontSize: 15,
+          fontSize: 15.5,
           color: C.text2,
-          lineHeight: 1.55,
-          marginBottom: 28,
+          lineHeight: 1.6,
+          marginBottom: 30,
+          maxWidth: 540,
         }}
       >
-        Este asistente le guiará en la configuración inicial del gemelo digital.
-        Los parámetros que ingrese se utilizarán para los cálculos de producción
-        solar, predicciones meteorológicas y estimaciones de autonomía energética.
+        Este asistente le guiará en la puesta en marcha del gemelo digital. Los
+        parámetros que ingrese alimentan los cálculos de producción solar, las
+        predicciones meteorológicas y las estimaciones de autonomía energética.
       </p>
 
+      {/* Meta row */}
       <div
         className="wiz-stagger"
         style={{
           animationDelay: '180ms',
-          background: C.bgChip,
-          borderRadius: 12,
-          padding: '18px 20px',
-          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0,
+          flexWrap: 'wrap',
+          marginBottom: 8,
         }}
       >
-        <p
-          style={{
-            fontSize: 11.5,
-            fontWeight: 600,
-            color: C.text4,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            marginBottom: 14,
-          }}
-        >
-          Lo que vamos a configurar
-        </p>
-
         {[
-          { n: '1', title: 'Ubicación geográfica', sub: 'Coordenadas de la instalación.' },
-          { n: '2', title: 'Arreglo fotovoltaico', sub: 'Especificaciones de los paneles solares.' },
-          { n: '3', title: 'Sistema de almacenamiento', sub: 'Capacidad de las baterías.' },
-        ].map((item, i) => (
+          { v: '4', l: 'pasos guiados' },
+          { v: '~3 min', l: 'tiempo estimado' },
+          { v: 'Ajustes', l: 'editable después' },
+        ].map((m, i) => (
           <div
-            key={item.n}
+            key={m.l}
             style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 14,
-              paddingTop: i === 0 ? 0 : 12,
-              paddingBottom: i === 2 ? 0 : 12,
-              borderBottom: i < 2 ? `1px solid ${C.borderLight}` : 'none',
+              paddingRight: 28,
+              marginRight: 28,
+              borderRight: i < 2 ? '1px solid rgba(29,29,31,0.1)' : 'none',
             }}
           >
-            <div
-              style={{
-                flexShrink: 0,
-                width: 22,
-                height: 22,
-                borderRadius: 999,
-                background: C.white,
-                border: `1px solid ${C.border}`,
-                color: C.text2,
-                fontSize: 12,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: 1,
-              }}
-            >
-              {item.n}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 500, color: C.text, marginBottom: 2 }}>
-                {item.title}
-              </p>
-              <p style={{ fontSize: 12.5, color: C.text3, lineHeight: 1.4 }}>
-                {item.sub}
-              </p>
-            </div>
+            <p style={{ fontSize: 19, fontWeight: 600, color: C.text, letterSpacing: '-0.015em' }}>{m.v}</p>
+            <p style={{ fontSize: 12, color: C.text4, marginTop: 2 }}>{m.l}</p>
           </div>
         ))}
       </div>
 
-      <p
-        className="wiz-stagger"
-        style={{
-          animationDelay: '240ms',
-          fontSize: 13,
-          color: C.text3,
-          lineHeight: 1.5,
-          marginBottom: 24,
-        }}
-      >
-        Tiempo estimado: 2 minutos. Toda la información puede modificarse
-        posteriormente desde la sección de Ajustes.
-      </p>
-
-      <PrimaryButton onClick={onStart} delay={300}>
-        Comenzar configuración
-        <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
-      </PrimaryButton>
-
-      <SkipLink onClick={onSkip} delay={340} label="Omitir y configurar manualmente más tarde" />
+      <FooterActions
+        onSkip={onSkip}
+        skipLabel="Configurar más tarde"
+        primaryLabel={<>Comenzar configuración <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} /></>}
+        onPrimary={onStart}
+        delay={240}
+      />
     </div>
   );
 }
 
 function LocationContent({
-  onSave, onSkip,
+  onSave, onSkip, onBack,
 }: {
   onSave: (data: { lat: number; lon: number; name: string }) => Promise<void>;
   onSkip: () => void;
+  onBack: () => void;
 }) {
   const [preset, setPreset] = useState('La Habana, Cuba');
   const [lat, setLat] = useState('23.1136');
@@ -626,44 +846,43 @@ function LocationContent({
   return (
     <div>
       <StepHeader
-        eyebrow="Paso 1 de 3"
+        eyebrow="Paso 1 de 4"
         title="Ubicación geográfica"
-        description="Especifique la ubicación de la instalación. Estos datos se utilizan para calcular la radiación solar disponible y para obtener pronósticos meteorológicos del servicio Open-Meteo."
+        description="Estos datos se utilizan para calcular la radiación solar disponible y obtener pronósticos meteorológicos del servicio Open-Meteo."
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <SectionLabel delay={180}>Selección rápida</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div className="wiz-grid2">
+          <Field
+            label="Localidad"
+            hint="Ciudad preconfigurada o coordenadas personalizadas."
+            delay={180}
+          >
+            <Select
+              value={preset}
+              onChange={handlePreset}
+              options={[
+                ...LOCATION_PRESETS.map(p => ({ value: p.name, label: p.name })),
+                { value: '__custom__', label: 'Coordenadas personalizadas' },
+              ]}
+            />
+          </Field>
+          <Field
+            label="Nombre del sistema"
+            hint="Aparecerá en reportes y en el panel principal."
+            delay={220}
+          >
+            <Input value={name} onChange={setName} placeholder="CUJAE — La Habana, Cuba" />
+          </Field>
+        </div>
 
-        <Field
-          label="Localidad"
-          description="Seleccione una ciudad cubana preconfigurada o elija «Personalizada» para introducir coordenadas manualmente."
-          delay={220}
-        >
-          <Select
-            value={preset}
-            onChange={handlePreset}
-            options={[
-              ...LOCATION_PRESETS.map(p => ({ value: p.name, label: p.name })),
-              { value: '__custom__', label: 'Coordenadas personalizadas' },
-            ]}
-          />
-        </Field>
-
-        <SectionLabel delay={260}>Coordenadas</SectionLabel>
-
-        <div
-          className="wiz-stagger"
-          style={{ animationDelay: '290ms' }}
-        >
-          <p style={{ fontSize: 12.5, color: C.text3, lineHeight: 1.45, marginBottom: 10 }}>
-            Haga clic en el mapa para seleccionar la ubicación, o arrastre el marcador. Los campos siguientes se actualizarán automáticamente.
-          </p>
+        <div className="wiz-stagger" style={{ animationDelay: '260ms' }}>
           <div
             style={{
               position: 'relative',
               width: '100%',
-              height: 240,
-              borderRadius: 12,
+              height: 230,
+              borderRadius: 14,
               overflow: 'hidden',
               border: `1px solid ${C.border}`,
               background: '#f5f5f7',
@@ -675,14 +894,13 @@ function LocationContent({
               onChange={handleMapPick}
             />
           </div>
+          <p style={{ fontSize: 12, color: C.text4, lineHeight: 1.45, marginTop: 8 }}>
+            Haga clic en el mapa o arrastre el marcador; las coordenadas se actualizan automáticamente.
+          </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field
-            label="Latitud"
-            description="Grados decimales (-90 a 90)."
-            delay={330}
-          >
+        <div className="wiz-grid2">
+          <Field label="Latitud" hint="Grados decimales (−90 a 90)." delay={300}>
             <Input
               value={lat}
               onChange={v => { setLat(v); setPreset('__custom__'); }}
@@ -693,11 +911,7 @@ function LocationContent({
               placeholder="23.1136"
             />
           </Field>
-          <Field
-            label="Longitud"
-            description="Grados decimales (-180 a 180)."
-            delay={370}
-          >
+          <Field label="Longitud" hint="Grados decimales (−180 a 180)." delay={340}>
             <Input
               value={lon}
               onChange={v => { setLon(v); setPreset('__custom__'); }}
@@ -709,35 +923,29 @@ function LocationContent({
             />
           </Field>
         </div>
-
-        <Field
-          label="Nombre del sistema"
-          description="Etiqueta descriptiva que aparecerá en reportes y en el panel principal."
-          delay={410}
-        >
-          <Input value={name} onChange={setName} placeholder="CUJAE — La Habana, Cuba" />
-        </Field>
       </div>
 
-      <div style={{ marginTop: 28 }}>
-        <PrimaryButton onClick={handleSave} loading={saving} delay={470}>
-          Continuar
-          <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
-        </PrimaryButton>
-        <SkipLink onClick={onSkip} delay={510} />
-      </div>
+      <FooterActions
+        onBack={onBack}
+        onSkip={onSkip}
+        primaryLabel={<>Continuar <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} /></>}
+        onPrimary={handleSave}
+        loading={saving}
+        delay={400}
+      />
     </div>
   );
 }
 
 function PanelContent({
-  onSave, onSkip,
+  onSave, onSkip, onBack,
 }: {
   onSave: (data: {
     manufacturer: string; model?: string; ratedPowerKw: number;
     quantity: number; tiltDegrees?: number; orientation?: string;
   }) => Promise<void>;
   onSkip: () => void;
+  onBack: () => void;
 }) {
   const [manufacturer, setManufacturer] = useState('');
   const [model, setModel] = useState('');
@@ -772,100 +980,71 @@ function PanelContent({
   return (
     <div>
       <StepHeader
-        eyebrow="Paso 2 de 3"
+        eyebrow="Paso 2 de 4"
         title="Arreglo fotovoltaico"
-        description="Registre las especificaciones técnicas de sus paneles solares. La potencia total instalada es el parámetro principal del modelo de simulación de producción."
+        description="La potencia total instalada es el parámetro principal del modelo de simulación de producción solar."
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <SectionLabel delay={180}>Identificación</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <SectionLabel delay={160}>Identificación</SectionLabel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Fabricante" required delay={220}>
+        <div className="wiz-grid2">
+          <Field label="Fabricante" required delay={200}>
             <Input value={manufacturer} onChange={setManufacturer} placeholder="Canadian Solar" />
           </Field>
-          <Field label="Modelo" description="Opcional." delay={260}>
+          <Field label="Modelo" hint="Opcional." delay={240}>
             <Input value={model} onChange={setModel} placeholder="CS6R-550MS" />
           </Field>
         </div>
 
-        <SectionLabel delay={300}>Características técnicas</SectionLabel>
+        <SectionLabel delay={280}>Características técnicas</SectionLabel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field
-            label="Potencia por panel"
-            description="Potencia nominal STC en kilowatts."
-            delay={340}
-          >
+        <div className="wiz-grid2">
+          <Field label="Potencia por panel" hint="Potencia nominal STC en kilowatts." delay={320}>
             <Input value={ratedPowerKw} onChange={setRatedPowerKw} type="number" step="0.01" min="0.01" placeholder="0.55" />
           </Field>
-          <Field
-            label="Número de paneles"
-            description="Cantidad total del arreglo."
-            delay={380}
-          >
+          <Field label="Número de paneles" hint="Cantidad total del arreglo." delay={360}>
             <Input value={quantity} onChange={setQuantity} type="number" step="1" min="1" placeholder="10" />
           </Field>
         </div>
 
-        <SectionLabel delay={420}>Geometría del montaje</SectionLabel>
+        <SectionLabel delay={400}>Geometría del montaje</SectionLabel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field
-            label="Inclinación"
-            description="Ángulo respecto al plano horizontal (°)."
-            delay={460}
-          >
+        <div className="wiz-grid2">
+          <Field label="Inclinación" hint="Ángulo respecto al plano horizontal (°)." delay={440}>
             <Input value={tiltDegrees} onChange={setTiltDegrees} type="number" step="1" min="0" max="90" placeholder="15" />
           </Field>
-          <Field
-            label="Orientación"
-            description="Dirección de las caras frontales."
-            delay={500}
-          >
+          <Field label="Orientación" hint="Dirección de las caras frontales." delay={480}>
             <Select value={orientation} onChange={setOrientation} options={ORIENTATIONS.map(o => ({ value: o, label: o }))} />
           </Field>
         </div>
       </div>
 
-      {/* Summary */}
-      <div
-        className="wiz-stagger"
-        style={{
-          animationDelay: '540ms',
-          marginTop: 22,
-          background: C.bgChip,
-          border: `1px solid ${C.borderLight}`,
-          borderRadius: 10,
-          padding: '14px 18px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-        }}
-      >
-        <span style={{ fontSize: 13, color: C.text3 }}>Potencia instalada estimada</span>
-        <span style={{ fontSize: 17, fontWeight: 600, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
-          {animatedTotal > 0.05 ? animatedTotal.toFixed(1) : '—'}
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.text3, marginLeft: 4 }}>kW</span>
-        </span>
-      </div>
+      <SummaryStrip
+        label="Potencia instalada estimada"
+        value={animatedTotal > 0.05 ? animatedTotal.toFixed(1) : '—'}
+        unit="kW"
+        delay={520}
+      />
 
-      <div style={{ marginTop: 24 }}>
-        <PrimaryButton onClick={handleSave} loading={saving} delay={580}>
-          Continuar
-          <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
-        </PrimaryButton>
-        <SkipLink onClick={onSkip} delay={620} />
-      </div>
+      <FooterActions
+        onBack={onBack}
+        onSkip={onSkip}
+        primaryLabel={<>Continuar <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} /></>}
+        onPrimary={handleSave}
+        loading={saving}
+        delay={560}
+      />
     </div>
   );
 }
 
 function BatteryContent({
-  onSave, onSkip,
+  onSave, onSkip, onBack,
 }: {
   onSave: (data: { manufacturer: string; model?: string; capacityKwh: number; quantity: number }) => Promise<void>;
   onSkip: () => void;
+  onBack: () => void;
 }) {
   const [manufacturer, setManufacturer] = useState('');
   const [model, setModel] = useState('');
@@ -896,94 +1075,313 @@ function BatteryContent({
   return (
     <div>
       <StepHeader
-        eyebrow="Paso 3 de 3"
+        eyebrow="Paso 3 de 4"
         title="Sistema de almacenamiento"
-        description="Configure su banco de baterías. La capacidad total determina la autonomía del sistema durante períodos sin radiación solar o durante apagones."
+        description="La capacidad total del banco de baterías determina la autonomía del sistema durante períodos sin radiación solar o apagones."
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <SectionLabel delay={180}>Identificación</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <SectionLabel delay={160}>Identificación</SectionLabel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Fabricante" required delay={220}>
+        <div className="wiz-grid2">
+          <Field label="Fabricante" required delay={200}>
             <Input value={manufacturer} onChange={setManufacturer} placeholder="CATL" />
           </Field>
-          <Field label="Modelo" description="Opcional." delay={260}>
+          <Field label="Modelo" hint="Opcional." delay={240}>
             <Input value={model} onChange={setModel} placeholder="LiFePO4-100" />
           </Field>
         </div>
 
-        <SectionLabel delay={300}>Capacidad</SectionLabel>
+        <SectionLabel delay={280}>Capacidad</SectionLabel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field
-            label="Capacidad por módulo"
-            description="Capacidad nominal en kWh."
-            delay={340}
-          >
+        <div className="wiz-grid2">
+          <Field label="Capacidad por módulo" hint="Capacidad nominal en kWh." delay={320}>
             <Input value={capacityKwh} onChange={setCapacityKwh} type="number" step="0.1" min="0.1" placeholder="100" />
           </Field>
-          <Field
-            label="Número de módulos"
-            description="Cantidad de unidades."
-            delay={380}
-          >
+          <Field label="Número de módulos" hint="Cantidad de unidades." delay={360}>
             <Input value={quantity} onChange={setQuantity} type="number" step="1" min="1" placeholder="1" />
           </Field>
         </div>
       </div>
 
-      <div
-        className="wiz-stagger"
-        style={{
-          animationDelay: '420ms',
-          marginTop: 22,
-          background: C.bgChip,
-          border: `1px solid ${C.borderLight}`,
-          borderRadius: 10,
-          padding: '14px 18px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-        }}
-      >
-        <span style={{ fontSize: 13, color: C.text3 }}>Almacenamiento total estimado</span>
-        <span style={{ fontSize: 17, fontWeight: 600, color: C.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
-          {animatedTotal > 0.5 ? animatedTotal.toFixed(0) : '—'}
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.text3, marginLeft: 4 }}>kWh</span>
-        </span>
+      <SummaryStrip
+        label="Almacenamiento total estimado"
+        value={animatedTotal > 0.5 ? animatedTotal.toFixed(0) : '—'}
+        unit="kWh"
+        delay={400}
+      />
+
+      <FooterActions
+        onBack={onBack}
+        onSkip={onSkip}
+        primaryLabel={<>Continuar <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} /></>}
+        onPrimary={handleSave}
+        loading={saving}
+        delay={440}
+      />
+    </div>
+  );
+}
+
+function AppliancesContent({
+  onSave, onSkip, onBack,
+}: {
+  onSave: (items: ApplianceDraft[]) => Promise<void>;
+  onSkip: () => void;
+  onBack: () => void;
+}) {
+  const [items, setItems] = useState<ApplianceDraft[]>([]);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [avgW, setAvgW] = useState('');
+  const [maxW, setMaxW] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [activeHours, setActiveHours] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const totalAvgW = items.reduce((sum, i) => sum + i.averagePowerW * i.quantity, 0);
+  const animatedTotal = useAnimatedNumber(totalAvgW);
+
+  const applyPreset = (p: typeof APPLIANCE_PRESETS[number]) => {
+    setName(p.name);
+    setCategory(p.category);
+    setAvgW(String(p.avg));
+    setMaxW(String(p.max));
+    setQuantity('1');
+  };
+
+  const avg = parseFloat(avgW);
+  const canAdd = !!name.trim() && Number.isFinite(avg) && avg > 0;
+
+  const addItem = () => {
+    if (!canAdd) return;
+    const max = parseFloat(maxW);
+    const qty = parseInt(quantity);
+    const hours = parseFloat(activeHours);
+    setItems(prev => [
+      ...prev,
+      {
+        name: name.trim(),
+        category: category.trim() || undefined,
+        averagePowerW: avg,
+        maxPowerW: Number.isFinite(max) && max > 0 ? max : avg,
+        quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+        activeHours: Number.isFinite(hours) && hours >= 0 ? hours : undefined,
+      },
+    ]);
+    setName(''); setCategory(''); setAvgW(''); setMaxW(''); setQuantity('1'); setActiveHours('');
+  };
+
+  const removeItem = (index: number) => {
+    setItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSave = async () => {
+    if (!items.length) { onSkip(); return; }
+    setSaving(true);
+    await onSave(items);
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <StepHeader
+        eyebrow="Paso 4 de 4"
+        title="Equipos de consumo"
+        description="Registre los equipos eléctricos conectados al sistema. La carga total se utiliza para estimar la autonomía de las baterías y planificar el consumo."
+      />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Quick presets */}
+        <div className="wiz-stagger" style={{ animationDelay: '160ms' }}>
+          <p style={{ fontSize: 12, color: C.text4, marginBottom: 9 }}>
+            Equipos comunes — haga clic para rellenar el formulario:
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {APPLIANCE_PRESETS.map(p => (
+              <button
+                key={p.name}
+                onClick={() => applyPreset(p)}
+                className="wiz-chip"
+                style={{ fontFamily: FONT_STACK }}
+              >
+                {p.name}
+                <span style={{ color: C.text4, fontWeight: 400, marginLeft: 5 }}>{p.avg} W</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <SectionLabel delay={200}>Nuevo equipo</SectionLabel>
+
+        <div className="wiz-grid2">
+          <Field label="Nombre" required delay={240}>
+            <Input value={name} onChange={setName} placeholder="Refrigerador" />
+          </Field>
+          <Field label="Categoría" hint="Opcional." delay={270}>
+            <Input value={category} onChange={setCategory} placeholder="Refrigeración" />
+          </Field>
+        </div>
+
+        <div className="wiz-grid2">
+          <Field label="Potencia media" hint="Consumo promedio en watts." required delay={300}>
+            <Input value={avgW} onChange={setAvgW} type="number" step="1" min="1" placeholder="150" />
+          </Field>
+          <Field label="Potencia máxima" hint="En watts; vacío = igual a la media." delay={330}>
+            <Input value={maxW} onChange={setMaxW} type="number" step="1" min="1" placeholder="400" />
+          </Field>
+        </div>
+
+        <div className="wiz-grid2">
+          <Field label="Cantidad" hint="Unidades de este equipo." delay={360}>
+            <Input value={quantity} onChange={setQuantity} type="number" step="1" min="1" placeholder="1" />
+          </Field>
+          <Field label="Horas activas por día" hint="Opcional; uso diario estimado." delay={390}>
+            <Input value={activeHours} onChange={setActiveHours} type="number" step="0.5" min="0" max="24" placeholder="8" />
+          </Field>
+        </div>
+
+        <div className="wiz-stagger" style={{ animationDelay: '420ms', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={addItem}
+            disabled={!canAdd}
+            className="wiz-btn-ghost"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              fontFamily: FONT_STACK,
+              fontSize: 14,
+              fontWeight: 500,
+              color: C.text2,
+              background: 'rgba(29,29,31,0.05)',
+              borderRadius: 10,
+              padding: '0 16px',
+              height: 40,
+              border: 'none',
+              cursor: canAdd ? 'pointer' : 'not-allowed',
+              opacity: canAdd ? 1 : 0.45,
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <PlusIcon className="w-4 h-4" strokeWidth={2.2} />
+            Agregar a la lista
+          </button>
+        </div>
+
+        {/* Added appliances */}
+        {items.length > 0 && (
+          <div>
+            <SectionLabel>Equipos registrados ({items.length})</SectionLabel>
+            <div
+              style={{
+                marginTop: 14,
+                border: '1px solid rgba(29,29,31,0.08)',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
+            >
+              {items.map((item, i) => (
+                <div
+                  key={`${item.name}-${i}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '11px 16px',
+                    background: i % 2 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(29,29,31,0.02)',
+                    borderTop: i > 0 ? '1px solid rgba(29,29,31,0.06)' : 'none',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13.5, fontWeight: 500, color: C.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.name}
+                      {item.quantity > 1 && (
+                        <span style={{ color: C.text4, fontWeight: 400 }}> × {item.quantity}</span>
+                      )}
+                    </p>
+                    {item.category && (
+                      <p style={{ fontSize: 11.5, color: C.text4, marginTop: 1 }}>{item.category}</p>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: C.text2, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {item.averagePowerW * item.quantity} W
+                    {item.activeHours !== undefined && (
+                      <span style={{ color: C.text4, fontWeight: 400 }}> · {item.activeHours} h/día</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => removeItem(i)}
+                    aria-label={`Eliminar ${item.name}`}
+                    className="wiz-row-remove"
+                    style={{
+                      flexShrink: 0,
+                      width: 26,
+                      height: 26,
+                      borderRadius: 999,
+                      border: 'none',
+                      background: 'transparent',
+                      color: C.text4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <XMarkIcon className="w-4 h-4" strokeWidth={2.2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        <PrimaryButton onClick={handleSave} loading={saving} delay={460}>
-          Finalizar configuración
-          <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
-        </PrimaryButton>
-        <SkipLink onClick={onSkip} delay={500} />
-      </div>
+      <SummaryStrip
+        label="Carga media total"
+        value={animatedTotal > 0.5 ? animatedTotal.toFixed(0) : '—'}
+        unit="W"
+        delay={460}
+      />
+
+      <FooterActions
+        onBack={onBack}
+        onSkip={onSkip}
+        primaryLabel={<>Finalizar <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} /></>}
+        onPrimary={handleSave}
+        loading={saving}
+        delay={500}
+      />
     </div>
   );
 }
 
 function DoneContent({ onFinish }: { onFinish: () => void }) {
   return (
-    <div>
-      {/* Check badge — restrained, single icon */}
-      <div className="wiz-stagger" style={{ animationDelay: '0ms', display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 999,
-            background: C.green,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: C.white,
-            boxShadow: `0 6px 20px -6px ${C.green}80`,
-          }}
-        >
-          <CheckIcon className="w-7 h-7 wiz-check-pop" strokeWidth={2.8} />
+    <div style={{ textAlign: 'center', maxWidth: 420, margin: '0 auto' }}>
+      <div className="wiz-stagger" style={{ animationDelay: '0ms', display: 'flex', justifyContent: 'center', marginBottom: 26 }}>
+        <div style={{ position: 'relative', width: 62, height: 62 }}>
+          <div
+            className="wiz-ring"
+            style={{ position: 'absolute', inset: 0, borderRadius: 999, border: `1.5px solid ${C.green}` }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 999,
+              background: `linear-gradient(160deg, #3ed167 0%, ${C.greenDark} 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: C.white,
+              boxShadow: `0 10px 26px -8px ${C.green}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
+            }}
+          >
+            <CheckIcon className="w-7 h-7 wiz-check-pop" strokeWidth={2.8} />
+          </div>
         </div>
       </div>
 
@@ -991,10 +1389,9 @@ function DoneContent({ onFinish }: { onFinish: () => void }) {
         className="wiz-stagger"
         style={{
           animationDelay: '80ms',
-          textAlign: 'center',
           fontSize: 11.5,
           fontWeight: 600,
-          color: C.green,
+          color: C.greenDark,
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
           marginBottom: 12,
@@ -1007,11 +1404,10 @@ function DoneContent({ onFinish }: { onFinish: () => void }) {
         className="wiz-stagger"
         style={{
           animationDelay: '140ms',
-          textAlign: 'center',
-          fontSize: 28,
+          fontSize: 30,
           fontWeight: 600,
           color: C.text,
-          letterSpacing: '-0.02em',
+          letterSpacing: '-0.022em',
           lineHeight: 1.15,
           marginBottom: 14,
         }}
@@ -1023,25 +1419,23 @@ function DoneContent({ onFinish }: { onFinish: () => void }) {
         className="wiz-stagger"
         style={{
           animationDelay: '200ms',
-          textAlign: 'center',
           fontSize: 14.5,
           color: C.text2,
-          lineHeight: 1.55,
-          marginBottom: 28,
-          maxWidth: 360,
-          marginLeft: 'auto',
-          marginRight: 'auto',
+          lineHeight: 1.6,
+          marginBottom: 32,
         }}
       >
-        El gemelo digital está configurado y comenzará a procesar
-        datos de su instalación. Podrá modificar cualquier parámetro
-        desde el módulo de Ajustes en cualquier momento.
+        El gemelo digital está configurado y comenzará a procesar datos de su
+        instalación. Podrá modificar cualquier parámetro desde el módulo de
+        Ajustes en cualquier momento.
       </p>
 
-      <PrimaryButton onClick={onFinish} delay={260}>
-        Ir al panel principal
-        <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
-      </PrimaryButton>
+      <div className="wiz-stagger" style={{ animationDelay: '260ms', display: 'flex', justifyContent: 'center' }}>
+        <PrimaryButton onClick={onFinish}>
+          Ir al panel principal
+          <ArrowRightIcon className="w-4 h-4" strokeWidth={2.4} />
+        </PrimaryButton>
+      </div>
     </div>
   );
 }
@@ -1053,6 +1447,8 @@ export default function OnboardingWizard({ onComplete }: Props) {
   const [direction, setDirection] = useState<Direction>('none');
   const [transitioning, setTransitioning] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const parallaxRef = useParallax();
+  const paneRef = useRef<HTMLDivElement>(null);
 
   const navigate = useCallback((next: number, dir: Direction) => {
     setDirection(dir);
@@ -1060,12 +1456,13 @@ export default function OnboardingWizard({ onComplete }: Props) {
     setTimeout(() => {
       setStep(next);
       setTransitioning(false);
+      paneRef.current?.scrollTo({ top: 0 });
     }, 180);
   }, []);
 
   const forward = useCallback((next: number) => navigate(next, 'forward'), [navigate]);
   const back = useCallback(() => {
-    if (step > 0 && step < 4) navigate(step - 1, 'backward');
+    if (step > 0 && step < 5) navigate(step - 1, 'backward');
   }, [step, navigate]);
 
   const finish = useCallback(() => {
@@ -1108,15 +1505,43 @@ export default function OnboardingWizard({ onComplete }: Props) {
     }
   }, [forward]);
 
-  const cardTransform = transitioning
+  const handleSaveAppliances = useCallback(async (items: ApplianceDraft[]) => {
+    setSaveError(null);
+    try {
+      for (const item of items) {
+        await executeMutation(CREATE_APPLIANCE_MUTATION, {
+          input: {
+            name: item.name,
+            category: item.category,
+            averagePowerW: item.averagePowerW,
+            maxPowerW: item.maxPowerW,
+            quantity: item.quantity,
+            activeHours: item.activeHours,
+            alwaysOn: true,
+          },
+        });
+      }
+      forward(5);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'No se pudieron guardar los equipos. Revise la conexión con el servidor.');
+    }
+  }, [forward]);
+
+  const contentTransform = transitioning
     ? {
         opacity: 0,
-        transform: direction === 'forward' ? 'translateX(-10px)' : 'translateX(10px)',
+        transform: direction === 'forward'
+          ? 'translateX(-14px)'
+          : 'translateX(14px)',
+        filter: 'blur(5px)',
       }
-    : { opacity: 1, transform: 'translateX(0)' };
+    : { opacity: 1, transform: 'translateX(0)', filter: 'blur(0px)' };
+
+  const centered = step === 0 || step === 5;
 
   return (
     <div
+      ref={parallaxRef}
       style={{
         position: 'fixed',
         inset: 0,
@@ -1125,8 +1550,10 @@ export default function OnboardingWizard({ onComplete }: Props) {
         alignItems: 'center',
         justifyContent: 'center',
         overflowY: 'auto',
-        padding: '32px 16px',
+        padding: '28px 18px',
         fontFamily: FONT_STACK,
+        ['--px' as string]: '0',
+        ['--py' as string]: '0',
       }}
     >
       <style>{`
@@ -1146,16 +1573,69 @@ export default function OnboardingWizard({ onComplete }: Props) {
           animation: wiz-check-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
         }
         @keyframes wiz-blob-1 {
-          0%, 100% { transform: translate(0, 0); }
-          33% { transform: translate(35px, -22px); }
-          66% { transform: translate(-28px, 22px); }
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(38px, -26px) scale(1.06); }
+          66% { transform: translate(-30px, 24px) scale(0.96); }
         }
         @keyframes wiz-blob-2 {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(-40px, 28px); }
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-44px, 30px) scale(1.08); }
         }
         .wiz-blob { animation: wiz-blob-1 22s ease-in-out infinite; }
         .wiz-blob-b { animation: wiz-blob-2 28s ease-in-out infinite; }
+        @keyframes wiz-card-in {
+          from { opacity: 0; transform: translateY(18px) scale(0.975); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .wiz-card-in {
+          animation: wiz-card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes wiz-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(52,199,89,0.45); }
+          60% { box-shadow: 0 0 0 5px rgba(52,199,89,0); }
+        }
+        .wiz-pulse-dot { animation: wiz-pulse 2.4s ease-out infinite; }
+        @keyframes wiz-ring-expand {
+          0% { transform: scale(1); opacity: 0.7; }
+          100% { transform: scale(1.65); opacity: 0; }
+        }
+        .wiz-ring { animation: wiz-ring-expand 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.5s infinite; }
+        @keyframes wiz-rings-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        /* Parallax depth layers — driven by --px / --py set from pointer position */
+        .wiz-layer-far {
+          transform: translate3d(calc(var(--px, 0) * -22px), calc(var(--py, 0) * -14px), 0);
+          will-change: transform;
+        }
+        .wiz-layer-mid {
+          transform: translate3d(calc(var(--px, 0) * 14px), calc(var(--py, 0) * 10px), 0);
+          will-change: transform;
+        }
+        .wiz-layer-near {
+          transform: translate3d(calc(var(--px, 0) * 36px), calc(var(--py, 0) * 26px), 0);
+          will-change: transform;
+        }
+        .wiz-layer-card {
+          transform: translate3d(calc(var(--px, 0) * -7px), calc(var(--py, 0) * -5px), 0);
+          will-change: transform;
+        }
+        /* Two-column form grid */
+        .wiz-grid2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .wiz-progress-mobile { display: none; }
+        @media (max-width: 900px) {
+          .wiz-rail { display: none !important; }
+          .wiz-progress-mobile { display: block; }
+          .wiz-pane { padding: 32px 28px !important; }
+        }
+        @media (max-width: 600px) {
+          .wiz-grid2 { grid-template-columns: 1fr; }
+        }
         .wiz-input:focus {
           border-color: ${C.dark} !important;
           background: ${C.white} !important;
@@ -1172,15 +1652,57 @@ export default function OnboardingWizard({ onComplete }: Props) {
         .wiz-btn-primary:active:not(:disabled) {
           transform: scale(0.985);
         }
-        .wiz-link:hover {
-          color: ${C.blueHover} !important;
-        }
-        .wiz-back-btn:hover {
-          background: #e8e8ed !important;
+        .wiz-btn-ghost:hover {
+          background: rgba(29,29,31,0.09) !important;
           color: ${C.text} !important;
         }
-        .wiz-back-btn:active {
-          transform: scale(0.94);
+        .wiz-btn-ghost:active {
+          transform: scale(0.985);
+        }
+        .wiz-link {
+          font-size: 13.5px;
+          font-weight: 400;
+          color: ${C.blue};
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          padding: 10px 0;
+          transition: color 0.15s ease;
+          white-space: nowrap;
+        }
+        .wiz-link:hover {
+          color: ${C.blueHover};
+        }
+        .wiz-chip {
+          font-size: 12.5px;
+          font-weight: 500;
+          color: ${C.text2};
+          background: rgba(255,255,255,0.7);
+          border: 1px solid ${C.border};
+          border-radius: 999px;
+          padding: 7px 14px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+        .wiz-chip:hover {
+          border-color: ${C.dark};
+          color: ${C.text};
+          background: ${C.white};
+          box-shadow: 0 2px 8px -2px rgba(0,0,0,0.12);
+        }
+        .wiz-chip:active {
+          transform: scale(0.97);
+        }
+        .wiz-row-remove:hover {
+          background: rgba(185,28,28,0.08) !important;
+          color: #b91c1c !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .wiz-stagger, .wiz-card-in, .wiz-blob, .wiz-blob-b,
+          .wiz-pulse-dot, .wiz-ring, .wiz-check-pop {
+            animation: none !important;
+          }
         }
         /* Leaflet overrides for embedded map */
         .leaflet-container {
@@ -1205,123 +1727,204 @@ export default function OnboardingWizard({ onComplete }: Props) {
         }
       `}</style>
 
-      {/* Background — light atmospheric */}
+      {/* Background — layered, each plane moves at its own parallax depth */}
       <div
         className="pointer-events-none"
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'linear-gradient(135deg, #eef1f6 0%, #e3e7ee 50%, #dde2eb 100%)',
+          backgroundImage: "url('/background%20panels.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
         }}
       />
+
+      {/* Far plane — aurora wash */}
+      <div className="pointer-events-none" style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+        <div className="wiz-layer-far" style={{ position: 'absolute', inset: '-60px' }}>
+          <div
+            className="wiz-blob"
+            style={{
+              position: 'absolute',
+              top: '6%',
+              left: '8%',
+              width: 520,
+              height: 520,
+              borderRadius: '50%',
+              background: 'rgba(52,199,89,0.14)',
+              filter: 'blur(110px)',
+            }}
+          />
+          <div
+            className="wiz-blob-b"
+            style={{
+              position: 'absolute',
+              top: '12%',
+              right: '4%',
+              width: 500,
+              height: 500,
+              borderRadius: '50%',
+              background: 'rgba(0,113,227,0.13)',
+              filter: 'blur(110px)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-12%',
+              left: '32%',
+              width: 560,
+              height: 420,
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.55)',
+              filter: 'blur(100px)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Mid plane — fine dot grid, faded toward the edges */}
       <div className="pointer-events-none" style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         <div
-          className="wiz-blob"
+          className="wiz-layer-mid"
           style={{
             position: 'absolute',
-            top: '8%',
-            left: '10%',
-            width: 480,
-            height: 480,
-            borderRadius: '50%',
-            background: 'rgba(52,199,89,0.13)',
-            filter: 'blur(120px)',
-          }}
-        />
-        <div
-          className="wiz-blob-b"
-          style={{
-            position: 'absolute',
-            top: '15%',
-            right: '5%',
-            width: 460,
-            height: 460,
-            borderRadius: '50%',
-            background: 'rgba(0,113,227,0.12)',
-            filter: 'blur(120px)',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.05,
+            inset: '-40px',
+            opacity: 0.055,
             backgroundImage: 'radial-gradient(rgba(0,0,0,1) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
+            backgroundSize: '26px 26px',
+            maskImage: 'radial-gradient(ellipse 75% 65% at 50% 45%, black 30%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 75% 65% at 50% 45%, black 30%, transparent 100%)',
           }}
         />
       </div>
 
-      {/* CARD CONTAINER */}
+      {/* Near plane — hairline concentric rings behind the card */}
+      <div className="pointer-events-none" style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+        <div
+          className="wiz-layer-near"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: 1300,
+            height: 1300,
+            marginTop: -650,
+            marginLeft: -650,
+          }}
+        >
+          <svg
+            width="1300"
+            height="1300"
+            viewBox="0 0 1300 1300"
+            fill="none"
+            style={{ animation: 'wiz-rings-spin 180s linear infinite' }}
+          >
+            <circle cx="650" cy="650" r="420" stroke="rgba(29,29,31,0.055)" strokeWidth="1" />
+            <circle cx="650" cy="650" r="520" stroke="rgba(29,29,31,0.04)" strokeWidth="1" strokeDasharray="2 9" />
+            <circle cx="650" cy="650" r="625" stroke="rgba(29,29,31,0.03)" strokeWidth="1" />
+            <circle cx="650" cy="230" r="3" fill="rgba(0,113,227,0.35)" />
+            <circle cx="1170" cy="650" r="2.5" fill="rgba(52,199,89,0.4)" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Diagonal light sweep */}
       <div
+        className="pointer-events-none"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.5) 50%, transparent 62%)',
+          opacity: 0.6,
+        }}
+      />
+
+      {/* GLASS CARD — wide split layout: step rail + content pane */}
+      <div
+        className="wiz-layer-card wiz-card-in"
         style={{
           position: 'relative',
           zIndex: 10,
-          width: 480,
-          maxWidth: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
+          width: 'min(920px, 100%)',
         }}
       >
-        {/* Progress (steps 1–3) */}
-        {step >= 1 && step <= 3 && <ProgressIndicator step={step} />}
-
-        {/* WHITE CARD */}
-        <div style={{ position: 'relative', width: '100%' }}>
-          <div
-            style={{
-              position: 'relative',
-              background: C.white,
-              borderRadius: 18,
-              padding: '40px 44px',
-              boxShadow: '0 30px 80px -20px rgba(15,23,42,0.22), 0 6px 20px -6px rgba(15,23,42,0.1), 0 0 0 1px rgba(0,0,0,0.04)',
-              transition: 'opacity 180ms ease, transform 180ms ease',
-              ...cardTransform,
-            }}
-          >
-            {step >= 1 && step <= 3 && <BackButton onClick={back} />}
-
-            {saveError && step >= 1 && step <= 3 && (
-              <div
-                role="alert"
-                style={{
-                  marginBottom: 16,
-                  borderRadius: 12,
-                  border: '1px solid #fecaca',
-                  background: '#fef2f2',
-                  color: '#b91c1c',
-                  padding: '10px 14px',
-                  fontSize: 13,
-                  lineHeight: 1.4,
-                }}
-              >
-                {saveError}
-              </div>
-            )}
-
-            {step === 0 && <WelcomeContent onStart={() => forward(1)} onSkip={finish} />}
-            {step === 1 && <LocationContent onSave={handleSaveLocation} onSkip={() => forward(2)} />}
-            {step === 2 && <PanelContent onSave={handleSavePanel} onSkip={() => forward(3)} />}
-            {step === 3 && <BatteryContent onSave={handleSaveBattery} onSkip={() => forward(4)} />}
-            {step === 4 && <DoneContent onFinish={finish} />}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <p
+        <div
           style={{
-            marginTop: 20,
-            textAlign: 'center',
-            fontSize: 11,
-            fontWeight: 500,
-            color: C.text4,
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
+            display: 'flex',
+            alignItems: 'stretch',
+            height: 'min(86vh, 680px)',
+            minHeight: 520,
+            background: 'rgba(255,255,255,0.82)',
+            backdropFilter: 'blur(30px) saturate(1.7)',
+            WebkitBackdropFilter: 'blur(30px) saturate(1.7)',
+            borderRadius: 24,
+            overflow: 'hidden',
+            boxShadow: [
+              '0 36px 90px -22px rgba(15,23,42,0.24)',
+              '0 8px 24px -8px rgba(15,23,42,0.1)',
+              '0 0 0 1px rgba(255,255,255,0.65)',
+              'inset 0 1px 0 rgba(255,255,255,0.9)',
+            ].join(', '),
           }}
         >
-          Gemelo Digital · CUJAE
-        </p>
+          <StepRail step={step} />
+
+          {/* Content pane */}
+          <div
+            ref={paneRef}
+            className="wiz-pane"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflowY: 'auto',
+              padding: '44px 52px',
+            }}
+          >
+            <div
+              style={{
+                minHeight: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: centered ? 'center' : 'flex-start',
+                transition: 'opacity 180ms ease, transform 180ms ease, filter 180ms ease',
+                ...contentTransform,
+              }}
+            >
+              {step >= 1 && step <= 4 && (
+                <div className="wiz-progress-mobile" style={{ marginBottom: 26 }}>
+                  <ProgressIndicator step={step} />
+                </div>
+              )}
+
+              {saveError && step >= 1 && step <= 4 && (
+                <div
+                  role="alert"
+                  style={{
+                    marginBottom: 18,
+                    borderRadius: 12,
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#b91c1c',
+                    padding: '10px 14px',
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {saveError}
+                </div>
+              )}
+
+              {step === 0 && <WelcomeContent onStart={() => forward(1)} onSkip={finish} />}
+              {step === 1 && <LocationContent onSave={handleSaveLocation} onSkip={() => forward(2)} onBack={back} />}
+              {step === 2 && <PanelContent onSave={handleSavePanel} onSkip={() => forward(3)} onBack={back} />}
+              {step === 3 && <BatteryContent onSave={handleSaveBattery} onSkip={() => forward(4)} onBack={back} />}
+              {step === 4 && <AppliancesContent onSave={handleSaveAppliances} onSkip={() => forward(5)} onBack={back} />}
+              {step === 5 && <DoneContent onFinish={finish} />}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

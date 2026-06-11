@@ -462,3 +462,30 @@ export const DELETE_BLACKOUT_MUTATION = `
     deleteBlackout(id: $id)
   }
 `
+
+// ── Perfil de sombras ────────────────────────────────────────────────────────
+
+export const SHADOW_PROFILE_QUERY = `
+  query ShadowProfile {
+    shadowProfile {
+      slots {
+        hour
+        shadowPct
+        prodOverride
+      }
+      avgShadow
+      avgProd
+      updatedAt
+    }
+  }
+`
+
+export const SAVE_SHADOW_PROFILE_MUTATION = `
+  mutation SaveShadowProfile($slots: [ShadowSlotInput!]!) {
+    saveShadowProfile(slots: $slots) {
+      avgShadow
+      avgProd
+      updatedAt
+    }
+  }
+`

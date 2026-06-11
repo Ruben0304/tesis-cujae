@@ -3,7 +3,7 @@
 import { Canvas, useLoader, useThree, useFrame } from '@react-three/fiber';
 import {
   OrbitControls, Sky, TransformControls, useGLTF, Environment,
-  GizmoHelper, GizmoViewport,
+  GizmoHelper, GizmoViewport, ContactShadows,
 } from '@react-three/drei';
 import { EffectComposer, N8AO } from '@react-three/postprocessing';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -210,39 +210,84 @@ function ObstacleMesh({ obstacle, isSelected, onSelect }: {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// ShadowConfig — fuerza la activación del shadow map en el renderer.
+// No dependemos de la prop `shadows` del Canvas: lo activamos explícitamente para
+// garantizar sombras de contacto entre objetos (árbol → casa, etc.).
+// ──────────────────────────────────────────────────────────────────────────────
+function ShadowConfig() {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.shadowMap.enabled = true;
+    gl.shadowMap.type = THREE.PCFSoftShadowMap;
+    gl.shadowMap.autoUpdate = true;
+    gl.shadowMap.needsUpdate = true;
+  }, [gl]);
+  return null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Sun
 // ──────────────────────────────────────────────────────────────────────────────
 function Sun({ direction, isUp }: { direction: Vec3; isUp: boolean }) {
   const lightRef = useRef<THREE.DirectionalLight>(null);
+  const targetRef = useRef<THREE.Object3D>(null);
 
+  // El sol nunca baja del horizonte para el cálculo de la luz: mantenemos una
+  // elevación mínima para que las sombras tengan dirección coherente al atardecer.
+  const ly = Math.max(direction.y, 0.06);
+  const lx = direction.x;
+  const lz = direction.z;
+  const len = Math.hypot(lx, ly, lz) || 1;
+  const sunPos: [number, number, number] = [
+    (lx / len) * SUN_DISTANCE,
+    (ly / len) * SUN_DISTANCE,
+    (lz / len) * SUN_DISTANCE,
+  ];
+
+  // Configura la cámara de sombras una sola vez.
   useEffect(() => {
-    if (lightRef.current) {
-      // Sombras direccionales nítidas y dinámicas
-      lightRef.current.shadow.mapSize.set(4096, 4096);
-      lightRef.current.shadow.camera.near = 0.5;
-      lightRef.current.shadow.camera.far = 120;
-      lightRef.current.shadow.bias = -0.0001;
-      lightRef.current.shadow.radius = 1.5;              // sombras más nítidas
-      lightRef.current.shadow.autoUpdate = true;
-      const cam = lightRef.current.shadow.camera as THREE.OrthographicCamera;
-      cam.left = -40; cam.right = 40; cam.top = 40; cam.bottom = -40;
-      cam.updateProjectionMatrix();
-    }
+    const l = lightRef.current;
+    if (!l) return;
+    // Apunta la luz a un target real añadido a la escena (centro del terreno).
+    if (targetRef.current) l.target = targetRef.current;
+
+    l.shadow.mapSize.set(4096, 4096);
+    const cam = l.shadow.camera as THREE.OrthographicCamera;
+    cam.near = 0.5;
+    cam.far = SUN_DISTANCE * 2.5;
+    // Frustum ajustado a la escena: cubre los objetos y sus sombras largas al
+    // atardecer, manteniendo buena densidad de téxeles (4096 / 70 ≈ 58 px/m).
+    cam.left = -35; cam.right = 35; cam.top = 35; cam.bottom = -35;
+    cam.updateProjectionMatrix();
+
+    // Bias normal evita el "shadow acne" sin separar la sombra del objeto
+    // (peter-panning) → las sombras de contacto quedan pegadas a la base.
+    l.shadow.bias = -0.00018;
+    l.shadow.normalBias = 0.05;
+    l.shadow.radius = 3.5;          // penumbra suave estilo videojuego (PCFSoft)
+    l.shadow.blurSamples = 16;
+    l.shadow.autoUpdate = true;
   }, []);
 
   return (
     <>
+      {/* target en el centro de la escena */}
+      <object3D ref={targetRef} position={[0, 0.5, 0]} />
+
       <directionalLight
         ref={lightRef}
-        position={[direction.x * SUN_DISTANCE, direction.y * SUN_DISTANCE, direction.z * SUN_DISTANCE]}
-        intensity={isUp ? 2.5 : 0.05}
+        position={sunPos}
+        intensity={isUp ? 3.4 : 0.05}
         castShadow
-        color={isUp ? '#fffbe8' : '#7c8aaa'}
+        color={isUp ? '#fff3d6' : '#7c8aaa'}
       />
-      <ambientLight intensity={isUp ? 0.25 : 0.15} />
-      <hemisphereLight color="#cbe7ff" groundColor="#a3c785" intensity={isUp ? 0.2 : 0.08} />
+
+      {/* Luz de relleno tenue: baja para que las sombras tengan contraste real */}
+      <ambientLight intensity={isUp ? 0.12 : 0.15} />
+      <hemisphereLight color="#cbe7ff" groundColor="#9ab87a" intensity={isUp ? 0.18 : 0.06} />
+
       {isUp && (
-        <mesh position={[direction.x * SUN_DISTANCE, direction.y * SUN_DISTANCE, direction.z * SUN_DISTANCE]}>
+        <mesh position={sunPos}>
           <sphereGeometry args={[1.2, 16, 16]} />
           <meshBasicMaterial color="#ffd54f" />
         </mesh>
@@ -482,9 +527,25 @@ export default function Scene({
         />
       </Suspense>
 
+      <ShadowConfig />
       <Sun direction={sunDirection} isUp={isDay} />
 
       <Ground />
+
+      {/* Sombra de contacto estilo videojuego: ancla los objetos al suelo con un
+          oscurecimiento suave bajo su base, complementando la sombra direccional. */}
+      {isDay && (
+        <ContactShadows
+          position={[0, 0.015, 0]}
+          scale={70}
+          resolution={2048}
+          far={14}
+          blur={2.2}
+          opacity={0.55}
+          color="#16271a"
+          frames={Infinity}
+        />
+      )}
       <Compass />
       <Installation
         type={installation}
@@ -525,7 +586,7 @@ export default function Scene({
       )}
 
       {/* Post-processing: ambient occlusion suave (no enmascara sombras) */}
-      <EffectComposer multisampling={4}>
+      <EffectComposer multisampling={4} enableNormalPass={false}>
         <N8AO
           aoRadius={1.0}
           intensity={1.5}

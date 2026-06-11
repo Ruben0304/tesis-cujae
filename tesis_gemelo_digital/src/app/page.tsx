@@ -11,6 +11,10 @@ import { executeQuery } from '@/lib/graphql-client';
 const SESSION_KEY = 'gd_auth_user';
 const ONBOARDING_KEY = 'gd_onboarding_done';
 
+// TEMP: poner en true para forzar el wizard de bienvenida aunque el sistema
+// ya esté configurado (solo para pruebas). Volver a false antes de desplegar.
+const FORCE_ONBOARDING = true;
+
 const CHECK_PANELS_QUERY = `
   query CheckPanels {
     panels { _id }
@@ -41,6 +45,12 @@ export default function Home() {
   // Check if first-time setup is needed after user is authenticated
   useEffect(() => {
     if (!user || setupChecked) return;
+
+    if (FORCE_ONBOARDING) {
+      setShowOnboarding(true);
+      setSetupChecked(true);
+      return;
+    }
 
     const onboardingDone = (() => {
       try { return !!window.localStorage.getItem(ONBOARDING_KEY); } catch { return false; }

@@ -15,6 +15,7 @@ import pandas as pd
 from .ml_model_service import ml_model_service
 from .solar_features import build_features
 from .weather_source_service import get_active_weather_source
+from .shadow_profile_service import get_shadow_profile
 
 
 OPENMETEO_BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -188,12 +189,33 @@ async def predict_solar_production(
                 "modelo ML de producción se entrenó con datos de Open-Meteo."
             )
 
+    # Cargar perfil de sombras una sola vez (sincrónico, singleton en BD).
+    # Si no existe perfil o la BD no está disponible, no se aplica corrección.
+    shadow_slots: Dict[int, Dict[str, Any]] = {}
+    try:
+        profile = get_shadow_profile()
+        if profile:
+            shadow_slots = {s["hour"]: s for s in profile.get("slots", [])}
+    except Exception:
+        pass
+
     # Format results
     results = []
     for i, (dt, pred_kw) in enumerate(zip(target_datetimes, predictions_kw)):
+        # Convertir a hora local de La Habana para buscar la franja de sombra.
+        local_hour = dt.astimezone(LOCAL_TZ).hour if dt.tzinfo else dt.hour
+
+        shadow_factor = 1.0
+        slot = shadow_slots.get(local_hour)
+        if slot:
+            if slot.get("prodOverride") is not None:
+                shadow_factor = slot["prodOverride"] / 100.0
+            else:
+                shadow_factor = 1.0 - (slot["shadowPct"] / 100.0)
+
         results.append({
             "datetime": dt.isoformat(),
-            "production_kw": round(float(pred_kw), 2),
+            "production_kw": round(float(pred_kw) * shadow_factor, 2),
             "weather": {
                 "temperature_2m": round(float(features_df.iloc[i]["temperature_2m"]), 1),
                 "relative_humidity_2m": round(float(features_df.iloc[i]["relative_humidity_2m"]), 1),

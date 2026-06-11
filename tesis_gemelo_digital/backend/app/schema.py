@@ -69,6 +69,10 @@ from app.services.location_config_service import (
     get_location_config,
     save_location_config,
 )
+from app.services.shadow_profile_service import (
+    get_shadow_profile,
+    save_shadow_profile,
+)
 from app.services.ml_prediction_service import (
     predict_solar_production,
     predict_next_hours,
@@ -190,6 +194,28 @@ class LocationConfigExtType:
     lon: float
     name: str
     updatedAt: Optional[str]
+
+
+@strawberry.type
+class ShadowSlotType:
+    hour: int
+    shadow_pct: float = strawberry.field(name="shadowPct")
+    prod_override: Optional[float] = strawberry.field(name="prodOverride")
+
+
+@strawberry.type
+class ShadowProfileType:
+    slots: List[ShadowSlotType]
+    avg_shadow: float = strawberry.field(name="avgShadow")
+    avg_prod: float = strawberry.field(name="avgProd")
+    updated_at: Optional[str] = strawberry.field(name="updatedAt")
+
+
+@strawberry.input
+class ShadowSlotInput:
+    hour: int
+    shadow_pct: float = strawberry.field(name="shadowPct")
+    prod_override: Optional[float] = strawberry.field(name="prodOverride", default=None)
 
 
 @strawberry.type
@@ -1507,6 +1533,26 @@ class Query:
             updatedAt=data.get("updatedAt"),
         )
 
+    @strawberry.field
+    def shadow_profile(self) -> Optional[ShadowProfileType]:
+        """Return the saved hourly shadow profile, or null if none has been stored."""
+        data = get_shadow_profile()
+        if data is None:
+            return None
+        return ShadowProfileType(
+            slots=[
+                ShadowSlotType(
+                    hour=s["hour"],
+                    shadow_pct=s["shadowPct"],
+                    prod_override=s.get("prodOverride"),
+                )
+                for s in data["slots"]
+            ],
+            avg_shadow=data["avgShadow"],
+            avg_prod=data["avgProd"],
+            updated_at=data.get("updatedAt"),
+        )
+
 
 # ============================================================================
 # Inputs
@@ -1907,6 +1953,37 @@ class Mutation:
             lon=data["lon"],
             name=data["name"],
             updatedAt=data.get("updatedAt"),
+        )
+
+    @strawberry.mutation(name="saveShadowProfile")
+    def save_shadow_profile_mutation(
+        self,
+        info: strawberry.types.Info,
+        slots: List[ShadowSlotInput],
+    ) -> ShadowProfileType:
+        """
+        Persist the hourly shadow profile for the installation.
+        Only day-lit slots (elevation > 0) should be included.
+        Admin only.
+        """
+        require_admin(info.context)
+        raw = [
+            {"hour": s.hour, "shadowPct": s.shadow_pct, "prodOverride": s.prod_override}
+            for s in slots
+        ]
+        data = save_shadow_profile(raw)
+        return ShadowProfileType(
+            slots=[
+                ShadowSlotType(
+                    hour=sl["hour"],
+                    shadow_pct=sl["shadowPct"],
+                    prod_override=sl.get("prodOverride"),
+                )
+                for sl in data["slots"]
+            ],
+            avg_shadow=data["avgShadow"],
+            avg_prod=data["avgProd"],
+            updated_at=data.get("updatedAt"),
         )
 
 

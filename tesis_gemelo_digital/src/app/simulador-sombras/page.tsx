@@ -1,518 +1,637 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *  ESCENA 3D — COMENTADA (disponible para reactivar en futuras versiones)
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * La implementación completa usa react-three-fiber + drei para visualizar
+ * obstáculos (árboles, edificios) y calcular sombras 3D sobre el panel.
+ * Scene.tsx sigue intacto. Para reactivar: restaurar las importaciones y el
+ * bloque <Scene> que se indica al final de este bloque de comentarios.
+ *
+ * import dynamic from 'next/dynamic';
+ * import { computeShadow, type Obstacle, type ObstacleType, type PanelRect } from '@/lib/shadowCalc';
+ * import type { InstallationType, InstallationState, TransformMode } from './Scene';
+ * import { INSTALLATION_ID } from './Scene';
+ * import { Move3d, RotateCcw as RotateCcw3D, TreePine, Building2, Trash2, Plus, Compass, Home, Grid3x3 } from 'lucide-react';
+ * import { sunDirection } from '@/lib/sunPosition';
+ * const Scene = dynamic(() => import('./Scene'), { ssr: false });
+ *
+ * const PANEL_BY_INSTALL: Record<InstallationType, PanelRect> = {
+ *   house: { center: { x: -0.6, y: 2.1, z: 0 }, width: 1.6, depth: 2, tiltDeg: 30, azimuthDeg: 180 },
+ *   park:  { center: { x: 0,   y: 0.7, z: 0 }, width: 4,   depth: 3, tiltDeg: 15, azimuthDeg: 180 },
+ * };
+ * const OBSTACLE_DEFAULTS = {
+ *   tree:     { height: 6, radius: 2, label: 'Árbol' },
+ *   building: { height: 6, radius: 2, label: 'Edificio' },
+ * };
+ * let nextObstacleId = 0;
+ * const newId = () => `obs-${++nextObstacleId}`;
+ * const DEFAULT_OBSTACLES: Obstacle[] = [
+ *   { id: newId(), type: 'tree',     position: { x: -7, y: 0, z: -2 }, height: 6, radius: 2 },
+ *   { id: newId(), type: 'building', position: { x: 9,  y: 0, z: 5  }, height: 6, radius: 2 },
+ * ];
+ *
+ * // Estado 3D (dentro del componente):
+ * // const [obstacles, setObstacles]             = useState<Obstacle[]>(DEFAULT_OBSTACLES);
+ * // const [selectedId, setSelectedId]           = useState<string | null>(null);
+ * // const [installation, setInstallation]       = useState<InstallationType>('house');
+ * // const [installationState, setInstallationState] = useState<InstallationState>({ position:{x:0,y:0,z:0}, scale:1, rotationY:0 });
+ * // const [transformMode, setTransformMode]     = useState<TransformMode>('translate');
+ * // const panel = useMemo(() => { ... }, [installation, installationState]);
+ * // const sunDir = useMemo(() => sunDirection(sunPos), [sunPos]);
+ * // const shadow = useMemo(() => computeShadow(panel, sunDir, obstacles, sunPos.elevationDeg), [...]);
+ * // const productionMultiplier = useMemo(() => { ... }, [shadow.shadowPct, sunPos.elevationDeg]);
+ * // function addObstacle(type: ObstacleType) { ... }
+ * // function removeSelected() { ... }
+ * // function moveObstacle(id: string, x: number, z: number) { ... }
+ * // function rotateObstacle(id: string, yRad: number) { ... }
+ * // function updateSelected(patch: Partial<Obstacle>) { ... }
+ *
+ * // Bloque <Scene> (sustituye al selector de franjas en el layout):
+ * // <Scene
+ * //   obstacles={obstacles} selectedId={selectedId}
+ * //   sunDirection={sunDir} sunElevDeg={sunPos.elevationDeg}
+ * //   panel={panel} shadowResult={shadow}
+ * //   installation={installation} installationState={installationState}
+ * //   transformMode={transformMode}
+ * //   onSelectObstacle={setSelectedId}
+ * //   onMoveObstacle={moveObstacle}
+ * //   onRotateObstacle={rotateObstacle}
+ * // />
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import {
-  ArrowLeft, Sun, TreePine, Building2, Trash2, Plus,
-  Compass, Info, HelpCircle, Activity, Home, Grid3x3,
+  ArrowLeft, Sun, Info, HelpCircle, Activity, BarChart3, Edit3, RotateCcw,
+  Save, CheckCircle, CloudOff,
 } from 'lucide-react';
-import { sunPosition, sunDirection } from '@/lib/sunPosition';
-import { computeShadow, type Obstacle, type ObstacleType, type PanelRect } from '@/lib/shadowCalc';
-import type { InstallationType, InstallationState, TransformMode } from './Scene';
-import { INSTALLATION_ID } from './Scene';
-import { Move3d, RotateCcw } from 'lucide-react';
+import { sunPosition } from '@/lib/sunPosition';
+import { executeQuery, executeMutation } from '@/lib/graphql-client';
+import { SHADOW_PROFILE_QUERY, SAVE_SHADOW_PROFILE_MUTATION } from '@/lib/graphql-queries';
 
-// ── 3D scene (lazy import, sin SSR) ────────────────────────────────────────────
-const Scene = dynamic(() => import('./Scene'), { ssr: false });
-
-// ── Coordenadas La Habana (de CLAUDE.md) ──────────────────────────────────────
 const LAT = 23.1136;
 const LON = -82.3666;
-
-// ── Panel rect según el tipo de instalación (Y ajustado a los modelos GLB) ────
-const PANEL_BY_INSTALL: Record<InstallationType, PanelRect> = {
-  house: { center: { x: -0.6, y: 2.1, z: 0 }, width: 1.6, depth: 2,   tiltDeg: 30, azimuthDeg: 180 },
-  park:  { center: { x:  0,   y: 0.7, z: 0 }, width: 4,   depth: 3,   tiltDeg: 15, azimuthDeg: 180 },
-};
-
-// Defaults de los obstáculos según su tipo
-const OBSTACLE_DEFAULTS: Record<ObstacleType, { height: number; radius: number; label: string }> = {
-  'tree':     { height: 6, radius: 2, label: 'Árbol' },
-  'building': { height: 6, radius: 2, label: 'Edificio' },
-};
-
-let nextObstacleId = 0;
-const newId = () => `obs-${++nextObstacleId}`;
-
-const DEFAULT_OBSTACLES: Obstacle[] = [
-  { id: newId(), type: 'tree',     position: { x: -7, y: 0, z: -2 }, height: 6, radius: 2 },
-  { id: newId(), type: 'building', position: { x: 9,  y: 0, z: 5 },  height: 6, radius: 2 },
-];
-
-// ──────────────────────────────────────────────────────────────────────────────
-function Panel({ title, icon, children, className = '' }: {
-  title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string;
-}) {
-  return (
-    <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-        {icon}
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{title}</h3>
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  );
-}
-
-function Item({ dt, dd, ddColor = 'text-gray-900' }: { dt: string; dd: string; ddColor?: string }) {
-  return (
-    <div className="flex justify-between text-xs">
-      <span className="text-gray-500">{dt}</span>
-      <span className={`font-semibold tabular-nums ${ddColor}`}>{dd}</span>
-    </div>
-  );
-}
-
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 5); // 05:00 → 19:00
 
-// ──────────────────────────────────────────────────────────────────────────────
+interface TimeSlot {
+  hour: number;
+  shadowPct: number;
+  prodOverride: number | null; // null = automático (100 − shadowPct)
+}
+
+function shadowColor(pct: number): string {
+  if (pct === 0) return '#10b981';
+  if (pct < 25)  return '#f59e0b';
+  if (pct < 50)  return '#f97316';
+  return '#ef4444';
+}
+
+function autoProd(shadowPct: number): number {
+  return Math.max(0, 100 - shadowPct);
+}
+
+function fmt(h: number): string {
+  return `${String(h).padStart(2, '0')}:00`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function SimuladorSombrasPage() {
   const router = useRouter();
-  const [hour, setHour] = useState(13);
-  const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
-  const [obstacles, setObstacles] = useState<Obstacle[]>(DEFAULT_OBSTACLES);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [showHelp, setShowHelp] = useState(false);
-  const [installation, setInstallation] = useState<InstallationType>('house');
-  // Instalación: solo se mueve y rota, no se escala. Tamaño fijo más chico que antes.
-  const [installationState, setInstallationState] = useState<InstallationState>({
-    position: { x: 0, y: 0, z: 0 },
-    scale: 1,
-    rotationY: 0,
-  });
+  const [slots, setSlots] = useState<TimeSlot[]>(
+    HOURS.map(h => ({ hour: h, shadowPct: 0, prodOverride: null })),
+  );
+  const [editingHour, setEditingHour] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
 
-  // Modo activo del gizmo (estilo Blender: mover o rotar)
-  const [transformMode, setTransformMode] = useState<TransformMode>('translate');
+  // Cargar perfil guardado al montar
+  useEffect(() => {
+    executeQuery<{ shadowProfile: { slots: { hour: number; shadowPct: number; prodOverride: number | null }[]; updatedAt: string | null } | null }>(
+      SHADOW_PROFILE_QUERY,
+      {},
+      'network-only',
+    ).then(data => {
+      const profile = data?.shadowProfile;
+      if (!profile?.slots?.length) return;
+      setSlots(prev => prev.map(s => {
+        const saved = profile.slots.find(p => p.hour === s.hour);
+        return saved ? { ...s, shadowPct: saved.shadowPct, prodOverride: saved.prodOverride } : s;
+      }));
+      if (profile.updatedAt) setLastSaved(profile.updatedAt);
+    }).catch(() => { /* sin BD conectada — silencioso */ });
+  }, []);
 
-  // Panel real (con posición + escala aplicadas)
-  const panel = useMemo(() => {
-    const base = PANEL_BY_INSTALL[installation];
-    return {
-      ...base,
-      center: {
-        x: base.center.x * installationState.scale + installationState.position.x,
-        y: base.center.y * installationState.scale + installationState.position.y,
-        z: base.center.z * installationState.scale + installationState.position.z,
-      },
-      width: base.width * installationState.scale,
-      depth: base.depth * installationState.scale,
-    };
-  }, [installation, installationState]);
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveStatus('idle');
+    try {
+      const slotsToSave = slots.map(s => ({
+        hour: s.hour,
+        shadowPct: s.shadowPct,
+        prodOverride: s.prodOverride ?? null,
+      }));
+      const data = await executeMutation<{ saveShadowProfile: { updatedAt: string } }>(
+        SAVE_SHADOW_PROFILE_MUTATION,
+        { slots: slotsToSave },
+      );
+      setLastSaved(data?.saveShadowProfile?.updatedAt ?? new Date().toISOString());
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    } finally {
+      setSaving(false);
+    }
+  }, [slots]);
 
-  // ── Cálculos derivados ────────────────────────────────────────────────────
-  const sunPos = useMemo(() => {
-    // Fecha sintética para el mes seleccionado y la hora del slider
+  // Elevación solar por hora (para saber qué franjas son diurnas)
+  const sunElevations = useMemo(() => HOURS.map(h => {
     const d = new Date();
     d.setMonth(month - 1, 15); // día 15 representativo del mes
-    d.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
-    return sunPosition(d, LAT, LON);
-  }, [hour, month]);
+    d.setHours(h, 30, 0, 0);
+    return { hour: h, elev: sunPosition(d, LAT, LON).elevationDeg };
+  }), [month]);
 
-  const sunDir = useMemo(() => sunDirection(sunPos), [sunPos]);
+  const isDayHour = (h: number) =>
+    (sunElevations.find(e => e.hour === h)?.elev ?? -1) > 0;
 
-  const shadow = useMemo(
-    () => computeShadow(panel, sunDir, obstacles, sunPos.elevationDeg),
-    [panel, sunDir, obstacles, sunPos.elevationDeg],
+  const updateSlot = (hour: number, patch: Partial<TimeSlot>) =>
+    setSlots(prev => prev.map(s => s.hour === hour ? { ...s, ...patch } : s));
+
+  const daySlots = useMemo(
+    () => slots.filter(s => isDayHour(s.hour)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slots, sunElevations],
   );
 
-  const productionMultiplier = useMemo(() => {
-    if (sunPos.elevationDeg <= 0) return 0;
-    return 1 - shadow.shadowPct / 100;
-  }, [shadow.shadowPct, sunPos.elevationDeg]);
-
-  // ── Acciones ──────────────────────────────────────────────────────────────
-  const addObstacle = (type: ObstacleType) => {
-    const angle = Math.random() * Math.PI * 2;
-    const r = 6 + Math.random() * 4;
-    const def = OBSTACLE_DEFAULTS[type];
-    setObstacles((prev) => [...prev, {
-      id: newId(),
-      type,
-      position: { x: Math.cos(angle) * r, y: 0, z: Math.sin(angle) * r },
-      height: def.height,
-      radius: def.radius,
-    }]);
-  };
-
-  const removeSelected = () => {
-    if (!selectedId) return;
-    setObstacles((prev) => prev.filter((o) => o.id !== selectedId));
-    setSelectedId(null);
-  };
-
-  const moveObstacle = (id: string, x: number, z: number) => {
-    if (id === INSTALLATION_ID) {
-      setInstallationState((s) => ({ ...s, position: { ...s.position, x, z } }));
-      return;
-    }
-    setObstacles((prev) => prev.map((o) => o.id === id ? { ...o, position: { ...o.position, x, z } } : o));
-  };
-
-  const rotateObstacle = (id: string, yRad: number) => {
-    if (id === INSTALLATION_ID) {
-      setInstallationState((s) => ({ ...s, rotationY: yRad }));
-      return;
-    }
-    setObstacles((prev) => prev.map((o) => o.id === id ? { ...o, rotationY: yRad } : o));
-  };
-
-  const updateSelected = (patch: Partial<Obstacle>) => {
-    if (!selectedId) return;
-    setObstacles((prev) => prev.map((o) => o.id === selectedId ? { ...o, ...patch } : o));
-  };
-
-  const selected = obstacles.find((o) => o.id === selectedId);
-  const isInstallationSelected = selectedId === INSTALLATION_ID;
+  const stats = useMemo(() => {
+    if (!daySlots.length) return { avgShadow: 0, avgProd: 100, withShadow: 0, total: 0, manualCount: 0 };
+    const avgShadow = daySlots.reduce((a, s) => a + s.shadowPct, 0) / daySlots.length;
+    const avgProd   = daySlots.reduce((a, s) => a + (s.prodOverride ?? autoProd(s.shadowPct)), 0) / daySlots.length;
+    return {
+      avgShadow,
+      avgProd,
+      withShadow: daySlots.filter(s => s.shadowPct > 0).length,
+      total: daySlots.length,
+      manualCount: slots.filter(s => s.prodOverride !== null).length,
+    };
+  }, [daySlots, slots]);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ── Top bar ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
-        <div className="max-w-[1500px] mx-auto px-4 h-12 flex items-center gap-3">
+
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-4 h-12 flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded px-2 py-1 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg px-2 py-1 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> Volver
           </button>
           <div className="w-px h-5 bg-gray-200" />
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Sun className="w-4 h-4 text-amber-500 shrink-0" />
-            <h1 className="text-sm font-semibold text-gray-900 truncate">Simulador 3D de sombras</h1>
-            <span className="text-xs text-gray-400 truncate">· coloca obstáculos y ve su impacto sobre el panel</span>
+            <h1 className="text-sm font-semibold text-gray-900 truncate">Simulador de sombras</h1>
+            <span className="text-xs text-gray-400 hidden sm:inline truncate">
+              · estimación de impacto por franja horaria
+            </span>
           </div>
           <button
-            onClick={() => setShowHelp((v) => !v)}
-            className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1.5 px-2 py-1 rounded hover:bg-gray-100"
+            onClick={() => setShowHelp(v => !v)}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
-            ¿Cómo funciona?
+            <HelpCircle className="w-3.5 h-3.5" /> ¿Cómo funciona?
+          </button>
+
+          <div className="w-px h-5 bg-gray-200" />
+
+          {/* Botón guardar */}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0 ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-100 text-emerald-700'
+                : saveStatus === 'error'
+                ? 'bg-red-100 text-red-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60'
+            }`}
+          >
+            {saveStatus === 'saved' ? (
+              <><CheckCircle className="w-3.5 h-3.5" /> Guardado</>
+            ) : saveStatus === 'error' ? (
+              <><CloudOff className="w-3.5 h-3.5" /> Error al guardar</>
+            ) : (
+              <><Save className="w-3.5 h-3.5" /> {saving ? 'Guardando…' : 'Guardar perfil'}</>
+            )}
           </button>
         </div>
 
         {showHelp && (
           <div className="bg-blue-50 border-t border-blue-100">
-            <div className="max-w-[1500px] mx-auto px-4 py-3 text-xs text-blue-900 leading-relaxed">
-              <p className="font-semibold mb-1">¿Cómo se calcula la sombra?</p>
+            <div className="max-w-[1400px] mx-auto px-4 py-3 text-xs text-blue-900 leading-relaxed">
+              <p className="font-semibold mb-1">Estimación de sombras por franja horaria</p>
               <p>
-                El sistema usa la posición real del sol para La Habana (lat {LAT}°, lon {LON}°) según el mes y la hora.
-                Sobre el panel se muestrean 81 puntos (grilla 9×9); para cada uno se traza un rayo virtual hacia el sol y
-                se comprueba si algún obstáculo lo intercepta. El porcentaje de puntos bloqueados es el % de sombra,
-                que se traduce directamente en pérdida de producción.
-                Las fórmulas de posición solar se basan en el algoritmo NOAA (versión simplificada).
+                Define el porcentaje de superficie del panel que estará sombreada en cada hora del día.
+                La reducción de producción se calcula automáticamente como (100% − % sombra), pero
+                puedes ajustarla manualmente por franja si dispones de datos de irradiancia más precisos.
+                Solo se contabilizan las franjas con elevación solar {'>'} 0° (La Habana, {LAT}°N).
               </p>
             </div>
           </div>
         )}
       </header>
 
-      {/* ── Body: 3 columnas (inline styles) ─────────────────────────────────── */}
-      <main className="mx-auto px-4 py-4" style={{ maxWidth: 1600 }}>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
+      {/* ── Main ────────────────────────────────────────────────────────────── */}
+      <main className="max-w-[1400px] mx-auto px-4 py-6">
+        <div className="flex gap-6 items-start">
 
-          {/* ── LEFT: Controls ──────────────────────────────────────────── */}
-          <aside style={{ width: 260, flexShrink: 0 }} className="space-y-4">
-            <Panel title="Tiempo" icon={<Sun className="w-3.5 h-3.5 text-gray-400" />}>
-              <div className="space-y-3">
-                <div>
-                  <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-xs font-medium text-gray-700">Hora del día</span>
-                    <span className="text-base font-bold tabular-nums text-amber-600">
-                      {String(Math.floor(hour)).padStart(2, '0')}:{String(Math.round((hour % 1) * 60)).padStart(2, '0')}
-                    </span>
-                  </div>
-                  <input
-                    type="range" min={0} max={24} step={0.25} value={hour}
-                    onChange={(e) => setHour(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-amber-500 bg-gray-200"
-                  />
-                </div>
+          {/* ── LEFT: Editor ─────────────────────────────────────────────── */}
+          <div className="flex-1 min-w-0 space-y-5">
 
-                <div>
-                  <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-xs font-medium text-gray-700">Mes</span>
-                    <span className="text-xs font-semibold text-gray-700">{MONTHS[month - 1]}</span>
-                  </div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {MONTHS.map((m, i) => (
-                      <button
-                        key={m}
-                        onClick={() => setMonth(i + 1)}
-                        className={`text-[10px] font-medium py-1 rounded transition-colors ${
-                          month === i + 1
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            {/* Mes */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold text-gray-800">Mes de análisis</span>
               </div>
-            </Panel>
-
-            <Panel title="Instalación" icon={<Home className="w-3.5 h-3.5 text-gray-400" />}>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setInstallation('house')}
-                  className={`inline-flex flex-col items-center justify-center gap-1 text-xs font-medium py-2.5 rounded transition-colors ${
-                    installation === 'house'
-                      ? 'bg-blue-500 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <Home className="w-4 h-4" />
-                  Casa con paneles
-                </button>
-                <button
-                  onClick={() => setInstallation('park')}
-                  className={`inline-flex flex-col items-center justify-center gap-1 text-xs font-medium py-2.5 rounded transition-colors ${
-                    installation === 'park'
-                      ? 'bg-blue-500 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <Grid3x3 className="w-4 h-4" />
-                  Parque de paneles
-                </button>
-              </div>
-            </Panel>
-
-            <Panel title="Obstáculos" icon={<TreePine className="w-3.5 h-3.5 text-gray-400" />}>
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-1.5">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 6 }}>
+                {MONTHS.map((m, i) => (
                   <button
-                    onClick={() => addObstacle('tree')}
-                    className="inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Árbol
-                  </button>
-                  <button
-                    onClick={() => addObstacle('building')}
-                    className="inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Edificio
-                  </button>
-                </div>
-
-                <p className="text-[11px] text-gray-400 leading-snug">
-                  Clic en un obstáculo para seleccionarlo · arrastra los gizmos para moverlo.
-                </p>
-
-                <div className="border-t border-gray-100 pt-2">
-                  <div className="text-[11px] text-gray-500 mb-1.5">En escena ({obstacles.length})</div>
-                  <ul className="space-y-1 max-h-32 overflow-y-auto">
-                    {obstacles.map((o) => (
-                      <li
-                        key={o.id}
-                        className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded cursor-pointer ${
-                          o.id === selectedId ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-50 text-gray-700'
-                        }`}
-                        onClick={() => setSelectedId(o.id)}
-                      >
-                        {o.type === 'building' ? <Building2 className="w-3 h-3" /> : <TreePine className="w-3 h-3" />}
-                        <span className="flex-1 truncate">{OBSTACLE_DEFAULTS[o.type].label}</span>
-                        <span className="text-gray-400 tabular-nums text-[10px]">{o.height.toFixed(0)}m</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </Panel>
-
-            {/* Edit selected */}
-            {/* Toggle Mover / Rotar (estilo Blender) — aparece si hay algo seleccionado */}
-            {(selected || isInstallationSelected) && (
-              <Panel title="Herramienta" icon={<Move3d className="w-3.5 h-3.5 text-gray-400" />}>
-                <div className="flex bg-gray-100 rounded-md p-0.5">
-                  <button
-                    onClick={() => setTransformMode('translate')}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded transition-colors ${
-                      transformMode === 'translate'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                    key={m}
+                    onClick={() => setMonth(i + 1)}
+                    className={`text-[11px] font-semibold py-1.5 rounded-lg transition-all ${
+                      month === i + 1
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-amber-50 hover:text-amber-700'
                     }`}
                   >
-                    <Move3d className="w-3.5 h-3.5" /> Mover
+                    {m}
                   </button>
-                  <button
-                    onClick={() => setTransformMode('rotate')}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded transition-colors ${
-                      transformMode === 'rotate'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Rotar
-                  </button>
-                </div>
-                <p className="text-[11px] text-gray-400 leading-snug mt-2">
-                  {transformMode === 'translate'
-                    ? 'Arrastra las flechas rojas y azules en el plano del suelo.'
-                    : 'Arrastra el anillo verde para rotar en el eje vertical.'}
-                </p>
-              </Panel>
-            )}
-
-            {isInstallationSelected && (
-              <Panel
-                title={`Editar: ${installation === 'house' ? 'Casa con paneles' : 'Parque de paneles'}`}
-                icon={installation === 'house'
-                  ? <Home className="w-3.5 h-3.5 text-gray-400" />
-                  : <Grid3x3 className="w-3.5 h-3.5 text-gray-400" />}
-              >
-                <div className="space-y-3">
-                  <div className="text-xs text-gray-600 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Posición X</span>
-                      <span className="font-semibold tabular-nums">{installationState.position.x.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Posición Z</span>
-                      <span className="font-semibold tabular-nums">{installationState.position.z.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Rotación Y</span>
-                      <span className="font-semibold tabular-nums">{((installationState.rotationY * 180) / Math.PI).toFixed(0)}°</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setInstallationState((s) => ({ ...s, position: { x: 0, y: 0, z: 0 }, rotationY: 0 }))}
-                    className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                  >
-                    Centrar y reiniciar rotación
-                  </button>
-                </div>
-              </Panel>
-            )}
-
-            {selected && (
-              <Panel
-                title={`Editar: ${OBSTACLE_DEFAULTS[selected.type].label}`}
-                icon={selected.type === 'building'
-                  ? <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                  : <TreePine className="w-3.5 h-3.5 text-gray-400" />}
-              >
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex items-baseline justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-700">Tamaño</span>
-                      <span className="text-xs font-bold tabular-nums">{selected.height.toFixed(1)} m</span>
-                    </div>
-                    <input
-                      type="range" min={1} max={20} step={0.5} value={selected.height}
-                      onChange={(e) => {
-                        const newHeight = Number(e.target.value);
-                        // El radio escala proporcionalmente: mantiene la relación altura/radio
-                        const ratio = selected.radius / selected.height;
-                        updateSelected({ height: newHeight, radius: newHeight * ratio });
-                      }}
-                      className="w-full h-1.5 accent-emerald-500"
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1 leading-tight">
-                      Escala uniforme del objeto. El área de sombra se ajusta automáticamente.
-                    </p>
-                  </div>
-                  <button
-                    onClick={removeSelected}
-                    className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" /> Eliminar
-                  </button>
-                </div>
-              </Panel>
-            )}
-          </aside>
-
-          {/* ── CENTER: 3D Scene ────────────────────────────────────────── */}
-          <div
-            className="bg-white border border-gray-200 rounded-lg overflow-hidden"
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <div className="relative" style={{ height: 'calc(100vh - 6rem)', minHeight: 520, width: '100%' }}>
-              <Scene
-                obstacles={obstacles}
-                selectedId={selectedId}
-                sunDirection={sunDir}
-                sunElevDeg={sunPos.elevationDeg}
-                panel={panel}
-                shadowResult={shadow}
-                installation={installation}
-                installationState={installationState}
-                transformMode={transformMode}
-                onSelectObstacle={setSelectedId}
-                onMoveObstacle={moveObstacle}
-                onRotateObstacle={rotateObstacle}
-              />
-              {/* HUD overlay */}
-              <div className="absolute top-3 left-3 bg-white/85 backdrop-blur border border-gray-200 rounded-lg px-3 py-2 text-xs">
-                <div className="flex items-center gap-3">
-                  <Sun className={`w-3.5 h-3.5 ${sunPos.elevationDeg > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
-                  <span className="text-gray-500">Elevación</span>
-                  <span className="font-semibold tabular-nums text-gray-900">{sunPos.elevationDeg.toFixed(0)}°</span>
-                  <span className="text-gray-300">·</span>
-                  <Compass className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="text-gray-500">Azimut</span>
-                  <span className="font-semibold tabular-nums text-gray-900">{sunPos.azimuthDeg.toFixed(0)}°</span>
-                </div>
+                ))}
               </div>
-              <div className="absolute bottom-3 left-3 bg-white/85 backdrop-blur border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] text-gray-500 leading-snug">
-                <div><kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">W</kbd><kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">A</kbd><kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">S</kbd><kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">D</kbd> mover · <kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">Q</kbd><kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">E</kbd> subir/bajar · <kbd className="bg-gray-100 border border-gray-300 rounded px-1 mx-0.5 font-mono">⇧</kbd> rápido</div>
-                <div>Arrastra ratón para rotar · rueda para zoom · clic para seleccionar</div>
+            </div>
+
+            {/* Gráfico */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart3 className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-800">Perfil de sombra diario</span>
+                <span className="ml-auto text-xs text-gray-400">{MONTHS[month - 1]}, día representativo</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-5">
+                Porcentaje de sombra sobre el panel por hora solar
+              </p>
+
+              {/* Barras */}
+              <div className="flex items-end gap-px" style={{ height: 96 }}>
+                {slots.map(slot => {
+                  const isDay = isDayHour(slot.hour);
+                  const barPx = isDay
+                    ? slot.shadowPct > 0
+                      ? Math.max(4, (slot.shadowPct / 100) * 78)
+                      : 0
+                    : 0;
+                  const color = shadowColor(slot.shadowPct);
+                  return (
+                    <div
+                      key={slot.hour}
+                      className="flex-1 flex flex-col items-center justify-end"
+                      style={{ height: '100%' }}
+                    >
+                      <div
+                        className="w-full flex flex-col items-center justify-end border-b border-gray-100"
+                        style={{ height: 78 }}
+                      >
+                        {isDay ? (
+                          <div
+                            className="w-full rounded-t transition-all duration-200"
+                            style={{
+                              height: slot.shadowPct === 0 ? 2 : barPx,
+                              backgroundColor: slot.shadowPct === 0 ? '#d1fae5' : color,
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full" style={{ height: 2, backgroundColor: '#f1f5f9' }} />
+                        )}
+                      </div>
+                      <span className="text-[8px] text-gray-300 tabular-nums mt-1 leading-none">
+                        {slot.hour}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Leyenda */}
+              <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
+                {[
+                  { bg: '#d1fae5', label: 'Sin sombra (0%)' },
+                  { bg: '#f59e0b', label: 'Leve (1–24%)' },
+                  { bg: '#f97316', label: 'Moderada (25–49%)' },
+                  { bg: '#ef4444', label: 'Alta (≥ 50%)' },
+                  { bg: '#f1f5f9', label: 'Sin sol' },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.bg }} />
+                    <span className="text-[10px] text-gray-500">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabla de franjas */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+              {/* Header tabla */}
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 bg-gray-50/70">
+                <Activity className="w-4 h-4 text-gray-400" />
+                <h2 className="text-sm font-semibold text-gray-800">
+                  Configuración por franja horaria
+                </h2>
+                <span className="ml-auto text-[11px] text-gray-400">
+                  {stats.total} franjas diurnas · {MONTHS[month - 1]}
+                </span>
+              </div>
+
+              {/* Cabecera columnas */}
+              <div
+                className="grid items-center gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-400"
+                style={{ gridTemplateColumns: '110px 1fr 220px' }}
+              >
+                <span>Franja horaria</span>
+                <span>% de sombra sobre el panel</span>
+                <span>Reducción de producción</span>
+              </div>
+
+              {/* Filas */}
+              <div className="divide-y divide-gray-50">
+                {slots.map(slot => {
+                  const isDay   = isDayHour(slot.hour);
+                  const prod    = slot.prodOverride ?? autoProd(slot.shadowPct);
+                  const isEditing = editingHour === slot.hour;
+                  const color   = shadowColor(slot.shadowPct);
+
+                  return (
+                    <div
+                      key={slot.hour}
+                      className={`grid items-center gap-4 px-5 py-3 transition-colors ${
+                        !isDay ? 'opacity-30 bg-gray-50/50' : 'hover:bg-slate-50/60'
+                      }`}
+                      style={{ gridTemplateColumns: '110px 1fr 220px' }}
+                    >
+                      {/* Hora */}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: isDay ? '#fbbf24' : '#e2e8f0' }}
+                        />
+                        <span className="text-[13px] font-mono font-bold text-gray-700 tabular-nums">
+                          {fmt(slot.hour)}
+                        </span>
+                        <span className="text-[10px] text-gray-300">–</span>
+                        <span className="text-[11px] font-mono text-gray-400 tabular-nums">
+                          {fmt(slot.hour + 1)}
+                        </span>
+                      </div>
+
+                      {/* Slider sombra */}
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={0} max={100} step={5}
+                          value={slot.shadowPct}
+                          disabled={!isDay}
+                          onChange={e => updateSlot(slot.hour, { shadowPct: Number(e.target.value) })}
+                          className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer disabled:cursor-not-allowed"
+                          style={{ accentColor: isDay ? color : '#e2e8f0' }}
+                        />
+                        <span
+                          className="w-10 text-right text-sm font-black tabular-nums"
+                          style={{ color: isDay ? color : '#cbd5e1' }}
+                        >
+                          {slot.shadowPct}%
+                        </span>
+                      </div>
+
+                      {/* Producción */}
+                      <div className="flex items-center gap-2">
+                        {isEditing && isDay ? (
+                          <input
+                            type="number"
+                            min={0} max={100}
+                            value={slot.prodOverride ?? prod}
+                            autoFocus
+                            onChange={e =>
+                              updateSlot(slot.hour, {
+                                prodOverride: Math.min(100, Math.max(0, Number(e.target.value))),
+                              })
+                            }
+                            onBlur={() => setEditingHour(null)}
+                            onKeyDown={e => e.key === 'Enter' && setEditingHour(null)}
+                            className="w-20 text-sm font-bold text-right border-2 border-blue-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-300 tabular-nums bg-white"
+                          />
+                        ) : (
+                          <span
+                            className="text-sm font-black tabular-nums"
+                            style={{
+                              color: !isDay ? '#cbd5e1'
+                                : prod >= 80 ? '#059669'
+                                : prod >= 60 ? '#d97706'
+                                : prod >= 40 ? '#ea580c'
+                                : '#dc2626',
+                            }}
+                          >
+                            {prod.toFixed(0)}%
+                          </span>
+                        )}
+
+                        {slot.prodOverride !== null && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                            manual
+                          </span>
+                        )}
+
+                        <div className="ml-auto flex items-center gap-1">
+                          {isDay && (
+                            <button
+                              onClick={() => setEditingHour(isEditing ? null : slot.hour)}
+                              title={isEditing ? 'Confirmar' : 'Editar producción manualmente'}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isEditing
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'text-gray-300 hover:text-blue-500 hover:bg-gray-100'
+                              }`}
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                          )}
+                          {slot.prodOverride !== null && (
+                            <button
+                              onClick={() => updateSlot(slot.hour, { prodOverride: null })}
+                              title="Restaurar cálculo automático"
+                              className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-gray-100 transition-colors"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer tabla */}
+              <div className="px-5 py-3 bg-gray-50/70 border-t border-gray-100 text-[11px] text-gray-400 leading-snug flex items-center gap-1.5">
+                <Edit3 className="w-3 h-3 flex-shrink-0" />
+                Ajusta el slider para definir la fracción sombreada · usa el ícono para introducir
+                una reducción de producción específica distinta del valor automático.
               </div>
             </div>
           </div>
 
-          {/* ── RIGHT: Results ──────────────────────────────────────────── */}
-          <aside style={{ width: 280, flexShrink: 0 }} className="space-y-4">
-            <Panel title="Impacto sobre el panel" icon={<Activity className="w-3.5 h-3.5 text-gray-400" />}>
-              <div className="space-y-3">
-                <div className="text-center py-2">
-                  <div className={`text-4xl font-black tabular-nums leading-none ${
-                    shadow.shadowPct === 0 ? 'text-emerald-600'
-                      : shadow.shadowPct < 30 ? 'text-amber-500'
-                      : 'text-red-600'
-                  }`}>
-                    {shadow.shadowPct.toFixed(0)}<span className="text-2xl text-gray-400">%</span>
-                  </div>
-                  <div className="text-[11px] uppercase tracking-wider text-gray-500 mt-1">Sombra sobre el panel</div>
-                </div>
+          {/* ── RIGHT: Resumen ───────────────────────────────────────────── */}
+          <aside className="w-72 flex-shrink-0 space-y-4">
 
-                <div className="space-y-1.5 pt-2 border-t border-gray-100">
-                  <Item dt="Producción esperada" dd={`${(productionMultiplier * 100).toFixed(0)}%`}
-                    ddColor={productionMultiplier > 0.7 ? 'text-emerald-600' : productionMultiplier > 0.4 ? 'text-amber-600' : 'text-red-600'} />
-                  <Item dt="Pérdida estimada" dd={`−${((1 - productionMultiplier) * 100).toFixed(0)}%`}
-                    ddColor={productionMultiplier < 1 ? 'text-red-600' : 'text-gray-400'} />
+            {/* Estadísticas */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-gray-400" />
+                <h2 className="text-sm font-semibold text-gray-800">Resumen del día</h2>
+              </div>
+
+              {/* Indicador principal */}
+              <div className="text-center py-5 mb-4 bg-gray-50 rounded-xl">
+                <div
+                  className="text-5xl font-black tabular-nums leading-none"
+                  style={{
+                    color: stats.avgShadow === 0 ? '#10b981'
+                      : stats.avgShadow < 20   ? '#f59e0b'
+                      : stats.avgShadow < 40   ? '#f97316'
+                      : '#ef4444',
+                  }}
+                >
+                  {stats.avgShadow.toFixed(0)}
+                  <span className="text-3xl font-bold text-gray-300">%</span>
+                </div>
+                <p className="text-[11px] uppercase tracking-widest text-gray-400 mt-2 font-semibold">
+                  Sombra promedio diurna
+                </p>
+              </div>
+
+              {/* Barra producción */}
+              <div className="mb-4">
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-gray-500 font-medium">Producción media estimada</span>
+                  <span
+                    className="font-black tabular-nums"
+                    style={{
+                      color: stats.avgProd >= 80 ? '#059669'
+                        : stats.avgProd >= 60    ? '#d97706'
+                        : '#dc2626',
+                    }}
+                  >
+                    {stats.avgProd.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${stats.avgProd}%`,
+                      backgroundColor: stats.avgProd >= 80 ? '#10b981'
+                        : stats.avgProd >= 60 ? '#f59e0b'
+                        : '#ef4444',
+                    }}
+                  />
                 </div>
               </div>
-            </Panel>
 
-            <Panel title="Posición del sol" icon={<Sun className="w-3.5 h-3.5 text-gray-400" />}>
-              <dl className="space-y-1.5">
-                <Item dt="Elevación" dd={`${sunPos.elevationDeg.toFixed(1)}°`} />
-                <Item dt="Azimut" dd={`${sunPos.azimuthDeg.toFixed(1)}°`} />
-                <Item dt="Estado" dd={sunPos.elevationDeg > 0 ? 'Día' : 'Noche'}
-                  ddColor={sunPos.elevationDeg > 0 ? 'text-amber-600' : 'text-slate-500'} />
+              {/* Detalles */}
+              <dl className="space-y-2.5 border-t border-gray-100 pt-3">
+                {[
+                  { dt: 'Pérdida estimada',           dd: `−${(100 - stats.avgProd).toFixed(0)}%`, red: true },
+                  { dt: 'Franjas con sombra',          dd: `${stats.withShadow} de ${stats.total}` },
+                  { dt: 'Producciones editadas',       dd: `${stats.manualCount}`, blue: true },
+                ].map(({ dt, dd, red, blue }) => (
+                  <div key={dt} className="flex justify-between text-xs">
+                    <span className="text-gray-500">{dt}</span>
+                    <span
+                      className="font-bold tabular-nums"
+                      style={{ color: red ? '#dc2626' : blue ? '#2563eb' : '#111827' }}
+                    >
+                      {dd}
+                    </span>
+                  </div>
+                ))}
               </dl>
-            </Panel>
-
-            <Panel title="Ubicación" icon={<Info className="w-3.5 h-3.5 text-gray-400" />}>
-              <dl className="space-y-1.5">
-                <Item dt="Lugar" dd="La Habana" />
-                <Item dt="Latitud" dd={`${LAT.toFixed(4)}°`} />
-                <Item dt="Longitud" dd={`${LON.toFixed(4)}°`} />
-                <Item dt="Panel" dd={`${panel.tiltDeg}° / sur`} />
-                <Item dt="Instalación" dd={installation === 'house' ? 'Casa' : 'Parque'} />
-              </dl>
-            </Panel>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-800 leading-snug">
-              <strong>Nota:</strong> El % de sombra se traduce directamente en pérdida de producción.
-              Puedes usar este valor en el slider <em>"Condición de paneles"</em> del simulador de batería.
             </div>
+
+            {/* Parámetros */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Info className="w-4 h-4 text-gray-400" />
+                <h2 className="text-sm font-semibold text-gray-800">Parámetros del sistema</h2>
+              </div>
+              <dl className="space-y-2 text-xs">
+                {[
+                  { dt: 'Ubicación',        dd: 'La Habana, Cuba' },
+                  { dt: 'Latitud',          dd: `${LAT}°N` },
+                  { dt: 'Longitud',         dd: `${LON}°` },
+                  { dt: 'Mes seleccionado', dd: MONTHS[month - 1] },
+                  { dt: 'Franjas diurnas',  dd: `${stats.total} horas` },
+                  { dt: 'Método',           dd: 'Estimación manual' },
+                ].map(({ dt, dd }) => (
+                  <div key={dt} className="flex justify-between">
+                    <span className="text-gray-400">{dt}</span>
+                    <span className="font-semibold text-gray-800">{dd}</span>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Nota */}
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[11px] text-amber-900 leading-relaxed">
+              <p className="font-bold mb-1.5">Integración con el simulador de batería</p>
+              <p>
+                El promedio de sombra diurna ({stats.avgShadow.toFixed(0)}%) puede emplearse como
+                parámetro de <em>condición de paneles</em> en el Simulador de batería para estimar
+                la autonomía real del sistema bajo estas condiciones de sombreo.
+              </p>
+            </div>
+
+            {/* Última vez guardado */}
+            {lastSaved && (
+              <div className="flex items-center gap-2 text-[11px] text-gray-400 px-1">
+                <CheckCircle className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                <span>
+                  Perfil guardado ·{' '}
+                  {new Date(lastSaved).toLocaleString('es-CU', {
+                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            )}
+
+            {/* Reset */}
+            <button
+              onClick={() => setSlots(HOURS.map(h => ({ hour: h, shadowPct: 0, prodOverride: null })))}
+              className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-800 py-2.5 rounded-xl hover:bg-gray-100 border border-gray-200 bg-white transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reiniciar todo a 0%
+            </button>
           </aside>
+
         </div>
       </main>
     </div>
