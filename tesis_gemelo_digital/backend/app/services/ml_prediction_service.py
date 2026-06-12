@@ -111,8 +111,17 @@ def prepare_features_dataframe(
         targets.tz_localize(LOCAL_TZ) if targets.tz is None else targets
     ).tz_convert("UTC").floor("h")
 
-    # Align weather to the requested hours (nearest hour as a safety net).
-    weather_at_targets = weather_df.reindex(targets, method="nearest")
+    # Align weather to the requested hours.
+    # tolerance=30 min: rechaza targets que caigan fuera del rango cubierto por
+    # la API (evita silenciosamente mapear una hora a un día distinto).
+    weather_at_targets = weather_df.reindex(
+        targets, method="nearest", tolerance=pd.Timedelta("30min")
+    )
+    if weather_at_targets.isna().any(axis=None):
+        raise ValueError(
+            "Algunos timestamps solicitados caen fuera del rango de datos "
+            "meteorológicos disponibles. Amplíe el rango de fechas de la consulta."
+        )
 
     return build_features(weather_at_targets, lat, lon)
 
@@ -211,7 +220,7 @@ async def predict_solar_production(
             if slot.get("prodOverride") is not None:
                 shadow_factor = slot["prodOverride"] / 100.0
             else:
-                shadow_factor = 1.0 - (slot["shadowPct"] / 100.0)
+                shadow_factor = max(0.0, min(1.0, 1.0 - (slot["shadowPct"] / 100.0)))
 
         results.append({
             "datetime": dt.isoformat(),

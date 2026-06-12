@@ -126,13 +126,15 @@ class TestNivelInicialParcial:
         assert result == 300
 
     def test_bateria_vacia_se_agota_inmediatamente(self):
+        # Con nivel inicial = 0 y consumo > producción, la batería ya está agotada
+        # ANTES de empezar la primera hora: debe retornar 0 minutos, no 60.
         result = simulate_battery_depletion(
             production_kw_series=const_series(0.0, 5),
             consumption_kw_series=const_series(10.0, 5),
             battery_capacity_kwh=100.0,
             start_level_kwh=0.0,
         )
-        assert result == 60  # ya en la primera hora está a 0
+        assert result == 0  # ya vacía al inicio: 0 minutos de autonomía
 
     def test_nivel_inicial_mayor_que_capacidad_se_trata_como_llena(self):
         # No debería ser posible en la práctica, pero el sistema debe ser robusto.

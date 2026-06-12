@@ -990,16 +990,18 @@ class Query:
         contribute averagePowerW * quantity converted to kW.
         """
         from datetime import datetime as _dt, timedelta as _td
+        from zoneinfo import ZoneInfo as _ZI
 
         from app.services.appliance_measurement_service import forecast_kw
 
+        _LOCAL_TZ = _ZI("America/Havana")
         if start:
             try:
                 begin = _dt.fromisoformat(start.replace("Z", "+00:00")).replace(tzinfo=None)
             except ValueError:
-                begin = _dt.utcnow()
+                begin = _dt.now(_LOCAL_TZ).replace(tzinfo=None)
         else:
-            now = _dt.utcnow()
+            now = _dt.now(_LOCAL_TZ).replace(tzinfo=None)  # hora local, no UTC
             begin = (now + _td(hours=1)).replace(minute=0, second=0, microsecond=0)
 
         hours = max(1, min(int(hours), 24 * 14))

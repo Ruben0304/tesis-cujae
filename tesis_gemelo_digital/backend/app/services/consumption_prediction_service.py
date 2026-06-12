@@ -6,6 +6,9 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
+
+_LOCAL_TZ = ZoneInfo("America/Havana")
 
 import numpy as np
 import pandas as pd
@@ -38,11 +41,19 @@ def prepare_consumption_features(
     features_list = []
 
     for target_dt in target_datetimes:
+        # Convertir a hora LOCAL de La Habana para que los features cíclicos
+        # (hora del día, día de la semana, etc.) coincidan con el horario del
+        # campus con que se entrenó el modelo y evitar train/serve skew.
+        local_dt = (
+            target_dt.astimezone(_LOCAL_TZ)
+            if target_dt.tzinfo is not None
+            else target_dt
+        )
         # Extract temporal features
-        hora = target_dt.hour
-        dia_semana = target_dt.weekday()  # 0=Monday, 6=Sunday
-        mes = target_dt.month
-        dia_del_mes = target_dt.day
+        hora = local_dt.hour
+        dia_semana = local_dt.weekday()  # 0=Monday, 6=Sunday
+        mes = local_dt.month
+        dia_del_mes = local_dt.day
         semana_del_anio = target_dt.isocalendar()[1]
 
         # Binary features
@@ -155,7 +166,10 @@ async def predict_consumption_next_hours(
     Returns:
         List of hourly consumption predictions
     """
-    now = datetime.utcnow()
+    # Usar hora local de La Habana para que la ventana de predicción empiece
+    # en la hora actual del operador, no en la hora UTC.
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("America/Havana"))
     target_datetimes = [
         (now + timedelta(hours=h)).isoformat()
         for h in range(hours)

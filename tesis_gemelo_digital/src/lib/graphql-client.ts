@@ -4,7 +4,7 @@
 import { Client, cacheExchange, fetchExchange } from 'urql'
 
 // GraphQL endpoint (FastAPI backend)
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/graphql'
+const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8001/graphql'
 
 const SESSION_KEY = 'gd_auth_user'
 

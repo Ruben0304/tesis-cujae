@@ -129,8 +129,12 @@ class MLModelService:
             else:
                 predictions = self.model.predict(features)
 
-            # Ensure non-negative predictions
-            predictions = np.maximum(predictions, 0)
+            # Clamp predictions: no negativas; si el modelo predice factor de
+            # capacidad (0-1), tampoco puede superar 1.
+            if self.metadata and self.metadata.get("output_is_capacity_factor"):
+                predictions = np.clip(predictions, 0, 1.0)
+            else:
+                predictions = np.maximum(predictions, 0)
 
             return predictions
 

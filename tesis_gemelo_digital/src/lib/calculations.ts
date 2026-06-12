@@ -96,12 +96,17 @@ export function calculateEfficiency(
   temperature: number,
   age: number = 0 // years
 ): number {
+  // Guard: no hay producción teórica en horas nocturnas
+  if (theoreticalProduction === 0) return 0;
+
   // Base efficiency ratio
   const baseEfficiency = (actualProduction / theoreticalProduction) * 100;
 
-  // Temperature coefficient: -0.4% per degree above 25°C
+  // Temperature coefficient: +0.4% de pérdida por cada °C sobre 25°C.
+  // Solo se aplica penalización por calor, nunca beneficio por frío.
+  // (coherente con solar_features.py: clip(lower=0) en el delta de temperatura)
   const tempReference = 25; // °C
-  const tempCoefficient = -0.4; // % per °C
+  const tempCoefficient = 0.4; // % por °C sobre la temperatura de referencia
   const tempLoss = Math.max(0, (temperature - tempReference) * tempCoefficient);
 
   // Age degradation: -0.5% per year
@@ -143,8 +148,11 @@ export function calculateROI(
   const dailySavings = dailyProduction * electricityPrice;
   const annualSavings = dailySavings * 365;
   const netAnnualSavings = annualSavings - annualMaintenance;
-  const paybackYears = systemCost / netAnnualSavings;
-  const roi25Years = ((netAnnualSavings * 25 - systemCost) / systemCost) * 100;
+  // Guard: si el mantenimiento supera el ahorro bruto, el retorno es indefinido
+  const paybackYears = netAnnualSavings > 0 ? systemCost / netAnnualSavings : Infinity;
+  const roi25Years = netAnnualSavings > 0
+    ? ((netAnnualSavings * 25 - systemCost) / systemCost) * 100
+    : -100;
 
   return {
     dailySavings: Math.round(dailySavings * 100) / 100,

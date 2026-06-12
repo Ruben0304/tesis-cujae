@@ -134,7 +134,8 @@ def predict_production(
 ) -> float:
     # Potencia DC en el array
     production_dc = (solar_radiation * context["arrayAreaM2"] * context["panelEfficiency"]) / 1000
-    temp_factor = 1 - (temperature - 25) * 0.004
+    # Solo penalización por calor (no beneficio por frío), coherente con solar_features.py
+    temp_factor = max(0.0, 1.0 - max(0.0, temperature - 25) * 0.004)
     production_dc *= temp_factor
     cloud_factor = 1 - (cloud_cover / 100) * 0.5
     production_dc *= cloud_factor
@@ -507,7 +508,7 @@ def generate_recommendations(
                 "Aunque la reserva es limitada, se espera repunte solar en pocas horas. Posponga consumos pesados hasta después del pico solar."
             )
 
-    current_hour = datetime.utcnow().hour
+    current_hour = datetime.now(ZoneInfo("America/Havana")).hour  # hora LOCAL, no UTC
     if 9 <= current_hour <= 11 and projected_max < 85:
         recommendations.append(
             "Se aproximan las horas de mayor producción (12-14h). Coordine actividades de alto consumo dentro de esa ventana."
@@ -531,7 +532,9 @@ def generate_recommendations(
         recommendations.append(
             "Durante el apagón programado actual, reserve energía para cargas imprescindibles y supervise el nivel de batería cada hora."
         )
-    midnight = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    # Medianoche local de La Habana: inicio del día actual según el reloj del usuario
+    _now_local = datetime.now(ZoneInfo("America/Havana"))
+    midnight = _now_local.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     upcoming = next((window for window in blackout_windows if window["start"] >= midnight), None)
     if upcoming and not blackout_now:
         start_info = upcoming["start"].strftime("%A %H:%M")

@@ -108,8 +108,12 @@ def build_features(
     out["shortwave_radiation"] = radiation
     out["clearsky_ghi"] = cs_ghi
     # clearsky index: ratio of actual to clear-sky irradiance (sky transparency)
-    ci = radiation / cs_ghi.replace(0, np.nan)
-    out["clearsky_index"] = ci.clip(lower=0, upper=1.2).fillna(0.0)
+    # Cuando cs_ghi==0 (noche exacta según pvlib) pero radiation>0 (amanecer/puesta
+    # con rayos rasantes), usar clearsky_index=1.0 (asume cielo transparente) en lugar
+    # de 0.0, que implicaría "cielo completamente cerrado" siendo contradictorio.
+    ci_raw = radiation / cs_ghi.replace(0, np.nan)
+    ci_filled = np.where((cs_ghi <= 0) & (radiation > 0), 1.0, ci_raw)
+    out["clearsky_index"] = pd.Series(ci_filled, index=times).clip(lower=0, upper=1.2).fillna(0.0)
     out["solar_elevation"] = solpos["elevation"].clip(lower=0)
     out["effective_irradiance"] = radiation * (1.0 - cloud / 100.0)
     out["cloud_cover"] = cloud
@@ -117,7 +121,8 @@ def build_features(
     out["relative_humidity_2m"] = df["relative_humidity_2m"]
     out["wind_speed_10m"] = df["wind_speed_10m"]
     # crystalline-silicon temperature derate proxy: -0.4%/°C above 25°C
-    out["temp_loss_factor"] = 1.0 - 0.004 * (df["temperature_2m"] - 25.0).clip(lower=0)
+    # Clipped to [0, 1]: no derating below 25°C; never goes negative.
+    out["temp_loss_factor"] = (1.0 - 0.004 * (df["temperature_2m"] - 25.0).clip(lower=0)).clip(lower=0, upper=1)
 
     # Local-time cyclic features (La Habana) — matches how the system is used.
     local = times.tz_convert(LOCAL_TZ)

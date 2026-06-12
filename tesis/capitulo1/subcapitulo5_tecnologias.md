@@ -57,6 +57,7 @@ Al margen del trío frontend/backend/persistencia, un gemelo digital de microrre
 | Biblioteca de ML tabular | **scikit-learn**, XGBoost, LightGBM | Madurez del ecosistema y disponibilidad de algoritmos clásicos (Random Forest, Gradient Boosting) [@pedregosa2011sklearn; @breiman2001randomforests; @chen2016xgboost] |
 | Marco de ML profundo para visión | **TensorFlow / Keras**, PyTorch, JAX | Soporte de *transfer learning* sobre modelos preentrenados y herramientas de despliegue [@sandler2018mobilenetv2; @pan2010transfer] |
 | Arquitectura CNN ligera para visión | **MobileNetV2**, ResNet, EfficientNet, VGG | Equilibrio entre exactitud y coste de inferencia sobre hardware estándar [@sandler2018mobilenetv2] |
+| Biblioteca de física solar | **pvlib**, SolarPy | Cálculo de posición solar, radiación de cielo despejado e irradiancia efectiva a partir de coordenadas y fecha, sin datos empíricos [@pvlib2024docs] |
 | Fuente de datos meteorológicos | **Open-Meteo**, OpenWeather, NASA POWER, AccuWeather, Copernicus | Coste recurrente, granularidad temporal y disponibilidad de la variable de irradiancia [@openmeteo2024] |
 
 : Otras tecnologías de soporte. {#tbl:otras}
@@ -75,6 +76,7 @@ A partir del análisis precedente, la Tabla \ref{tbl:tecnologias-adecuadas} resu
 | Comunicación API | **REST** + **GraphQL** en arquitectura híbrida |
 | Biblioteca de visualización | **Recharts** |
 | ML para predicción solar | **scikit-learn** con **Random Forest** |
+| Ingeniería de características solar | **pvlib** |
 | ML para detección visual | **TensorFlow / Keras** con **MobileNetV2** (*transfer learning*) |
 | Fuente meteorológica | **Open-Meteo** |
 
@@ -91,6 +93,8 @@ En el plano de la comunicación, una **arquitectura híbrida REST + GraphQL** re
 En el plano de la visualización, **Recharts** destaca por su integración nativa con React y por la velocidad de desarrollo que ofrece su modelo declarativo, frente a bibliotecas imperativas de bajo nivel como D3.js [@recharts2024docs; @bostock2011d3]. La complejidad gráfica habitual en un panel de control de gemelo digital —líneas de producción horaria, áreas apiladas de flujo energético, indicadores circulares de batería— se cubre sin necesidad de descender al nivel primitivo que aportaría D3 directamente.
 
 Para la **predicción de producción solar**, **scikit-learn con Random Forest** destaca como la opción más adecuada por dos razones [@pedregosa2011sklearn; @breiman2001randomforests]. La primera es la evidencia comparativa reciente, revisada en la sección 1.4.2, que posiciona a Random Forest como referencia competitiva en horizontes intradía y de hasta veinticuatro horas, con desempeño igual o superior a alternativas más complejas y un coste computacional sustancialmente menor. La segunda es la integración inmediata con scikit-learn como biblioteca canónica del ecosistema, lo que reduce el coste de desarrollo y facilita la reproducibilidad de los experimentos.
+
+La **ingeniería de características** del modelo de producción solar se apoya en **pvlib** [@pvlib2024docs], biblioteca de física solar que calcula, a partir de coordenadas geográficas y marca de tiempo, la posición del sol, la radiación de cielo despejado y el índice de claridad —variables que codifican el conocimiento astronómico y termodinámico del emplazamiento de manera determinista y reproducible. Esta aproximación es coherente con la estrategia híbrida físico-estadística introducida en la sección 1.4.2: pvlib aporta el componente físico del modelo, mientras que Random Forest aprende las relaciones no lineales residuales entre las condiciones meteorológicas y la producción observada. pvlib resulta la opción más adecuada en esta categoría por ser de código abierto, específicamente diseñada para la industria fotovoltaica y con amplio uso documentado en la literatura especializada [@dhimish2025reliability].
 
 Para la **detección visual del estado de los paneles**, **MobileNetV2 sobre TensorFlow/Keras con *transfer learning*** resulta la combinación más adecuada por el equilibrio que ofrece entre exactitud y coste de inferencia [@sandler2018mobilenetv2; @pan2010transfer]. La arquitectura ligera de MobileNetV2 permite ejecutar la clasificación sobre hardware estándar sin requerir aceleración por GPU dedicada en tiempo de inferencia, y el aprendizaje por transferencia desde pesos preentrenados sobre ImageNet reduce drásticamente los datos y el tiempo de entrenamiento necesarios.
 

@@ -144,6 +144,25 @@ describe('calculateEfficiency', () => {
   it('eficiencia base = 0 cuando producción actual = 0', () => {
     expect(calculateEfficiency(0, 100, 25, 0)).toBe(0)
   })
+
+  it('retorna 0 cuando producción teórica es 0 (noche, evita división por cero)', () => {
+    expect(calculateEfficiency(0, 0, 25, 0)).toBe(0)
+  })
+
+  it('penaliza por temperatura alta: 35 °C produce menos que 25 °C', () => {
+    const atRef = calculateEfficiency(100, 100, 25, 0)
+    const atHot = calculateEfficiency(100, 100, 35, 0)
+    expect(atHot).toBeLessThan(atRef)
+    // 10°C sobre referencia → 10 × 0.4 = 4% de pérdida → eficiencia 100 - 4 = 96
+    expect(atHot).toBeCloseTo(96, 5)
+  })
+
+  it('temperatura baja (< 25 °C) no genera bonificación artificial', () => {
+    const atRef  = calculateEfficiency(100, 100, 25, 0)
+    const atCold = calculateEfficiency(100, 100, 10, 0)
+    // Sin beneficio por frío: resultado idéntico al de referencia
+    expect(atCold).toBe(atRef)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────
@@ -199,6 +218,13 @@ describe('calculateROI', () => {
     const roi = calculateROI(200)
     expect(roi.dailySavings).toBe(30)     // 200 × 0.15
     expect(roi.annualSavings).toBe(10950)
+  })
+
+  it('retorna paybackYears=Infinity cuando el ahorro neto es cero o negativo', () => {
+    // mantenimiento (500/año) > ahorro (0.1 kWh × 0.15 × 365 = 5.5/año) → neto negativo
+    const roi = calculateROI(0.1, 0.15, 30000, 500)
+    expect(roi.paybackYears).toBe(Infinity)
+    expect(roi.roi25Years).toBe(-100)
   })
 })
 

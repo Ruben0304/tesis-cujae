@@ -46,6 +46,10 @@ def simulate_battery_depletion(
     for i, (prod_kw, cons_kw) in enumerate(
         zip(production_kw_series, consumption_kw_series)
     ):
+        # Detectar agotamiento al INICIO de la hora: si ya está vacía y hay déficit neto,
+        # no puede cubrir ni los primeros minutos de esta hora.
+        if level <= 0 and cons_kw > prod_kw:
+            return i * 60
         level += prod_kw - cons_kw
         level = max(0.0, min(battery_capacity_kwh, level))
         if level <= 0:

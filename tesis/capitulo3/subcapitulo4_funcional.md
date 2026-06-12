@@ -12,32 +12,47 @@ Los marcos seleccionados son **pytest** [@pytest2024docs] para el backend Python
 
 ### Pruebas del backend en Python con pytest
 
-El módulo de pruebas del backend totaliza **86 pruebas unitarias** distribuidas en tres archivos, cada uno asociado a un servicio crítico del sistema. La Tabla \ref{tbl:backend-tests} resume la distribución de las pruebas y las funciones cubiertas por cada archivo.
+El módulo de pruebas del backend totaliza **187 pruebas unitarias** distribuidas en ocho archivos, cada uno asociado a un dominio funcional del sistema. La Tabla \ref{tbl:backend-tests} resume la distribución de las pruebas y las funciones cubiertas por cada archivo.
 
 | Archivo                          | Pruebas | Funciones y servicios cubiertos                                    |
 |----------------------------------|---------|--------------------------------------------------------------------|
-| `test_prediction_service.py`     | 37      | Cálculo de producción horaria, factores de eficiencia, confianza, temperatura horaria estimada, ajuste por apagones |
+| `test_prediction_service.py`     | 37      | Cálculo de producción horaria heurístico, factores de eficiencia, confianza, temperatura estimada, ajuste por apagones |
 | `test_analytics.py`              | 18      | Métricas energéticas globales, balance, totales diarios, CO$_2$ evitado, flujos de energía multi-origen |
 | `test_user_service.py`           | 31      | Normalización de correos, hashing con *scrypt*, validación de roles, mapeo de documentos de usuario |
-| **Total**                        | **86**  |                                                                    |
+| `test_auth_guards.py`            | 19      | Guardas de autorización JWT: acceso autenticado, restricción a rol *admin*, protección de operaciones CRUD |
+| `test_battery_discharge.py`      | 17      | Simulación de descarga de batería: autonomía sin producción, extensión por recarga solar, casos borde de capacidad |
+| `test_crud_services.py`          | 31      | Operaciones CRUD completas sobre paneles, baterías y electrodomésticos contra base de datos en memoria (*mongomock*) |
+| `test_solar_features.py`         | 14      | Ingeniería de características compartida entre entrenamiento y producción: estructura de salida, consistencia física, factor de temperatura |
+| `test_ml_model_service.py`       | 20      | Modelo Havana v1: carga, metadatos, rango de predicciones, consistencia física y escalado *capacity\_factor* → kW |
+| **Total**                        | **187** |                                                                    |
 
 : Distribución de pruebas del backend. {#tbl:backend-tests}
 
-Las pruebas de `test_prediction_service.py` constituyen el conjunto más extenso y abordan el corazón analítico del backend [@pytest2024docs]. Verifican que el cálculo de producción horaria responde correctamente a los factores de eficiencia esperados según la hora del día (potencia nula antes de las 6 y después de las 19 horas, factor unitario en el pico solar entre las 12 y las 14, decrecimiento simétrico hacia las horas extremas del día), que el cálculo de la confianza de predicción combina adecuadamente las variables meteorológicas, y que los ajustes por escenarios de apagón modifican la producción y el consumo previstos en los porcentajes documentados en el Capítulo 2.
+Las pruebas de `test_prediction_service.py` constituyen el conjunto más extenso y abordan el corazón analítico del backend [@pytest2024docs]. Verifican que el cálculo de producción horaria responde correctamente a los factores de eficiencia esperados según la hora del día (potencia nula antes de las 6 y después de las 20 horas, factor unitario en el pico solar entre las 12 y las 14, decrecimiento simétrico hacia las horas extremas del día), que el cálculo de la confianza de predicción combina adecuadamente las variables meteorológicas, y que los ajustes por escenarios de apagón modifican la producción y el consumo previstos en los porcentajes documentados en el Capítulo 2.
 
 Las pruebas de `test_analytics.py` cubren las funciones que producen las métricas globales del sistema mostradas al usuario: balance energético instantáneo, producción y consumo acumulados diariamente, dióxido de carbono evitado en función de la producción solar acumulada, y la distribución del flujo de energía entre los cinco caminos posibles (de generación a carga, a batería, a la red; de batería a carga; de red a carga). Cada escenario relevante —generación superior al consumo, déficit, batería llena, batería vacía— se verifica mediante un caso de prueba específico.
 
 Las pruebas de `test_user_service.py` se concentran en el subsistema de autenticación, abarcando la normalización de correos a su forma canónica, el comportamiento del esquema de hashing basado en *scrypt* —cuya correcta implementación es crítica para la seguridad de las credenciales—, y la validación de los roles admitidos por el sistema. La cobertura de esta funcionalidad mediante pruebas automatizadas reduce el riesgo de regresiones en un dominio especialmente sensible.
 
+Las pruebas de `test_auth_guards.py` verifican el sistema de guardas de autorización basado en JWT, comprobando que las operaciones de solo lectura son accesibles a usuarios autenticados con cualquier rol, que las operaciones de escritura —creación, modificación y eliminación de paneles, baterías e inversores— están restringidas al rol *admin*, y que los intentos de acceso sin token o con roles no autorizados son rechazados con la excepción apropiada [@pytest2024docs].
+
+Las pruebas de `test_battery_discharge.py` validan el algoritmo de simulación de autonomía del almacenamiento, que es la base del análisis de escenarios de apagón documentado en el epígrafe 3.5. Los casos cubiertos incluyen descarga sin producción solar para distintos perfiles de consumo, extensión de la autonomía por recarga durante horas de producción, comportamiento con niveles iniciales de carga parcial y casos borde como capacidad cero, series temporales vacías y desincronización entre series de producción y consumo.
+
+Las pruebas de `test_crud_services.py` constituyen el nivel más próximo a una prueba de integración dentro de la estrategia adoptada: ejercitan las operaciones completas de creación, lectura, actualización y eliminación sobre los servicios de paneles, baterías y electrodomésticos, utilizando una base de datos MongoDB en memoria mediante la biblioteca *mongomock* [@pytest2024docs]. Esto permite verificar la correcta serialización y persistencia de documentos, la generación de identificadores únicos, la propagación de valores opcionales y la gestión de errores de validación de entrada, sin requerir una instancia real de MongoDB durante la ejecución de las pruebas.
+
+Las pruebas de `test_solar_features.py` verifican el módulo `solar_features.py`, que constituye la fuente única de verdad de la ingeniería de características del modelo Havana v1: es el mismo código que se emplea tanto durante el entrenamiento del modelo como en cada inferencia del backend en producción, lo que elimina por construcción el desajuste entre entrenamiento y servicio (*train/serve skew*). Los casos cubiertos comprenden la estructura exacta de salida (14 columnas en el orden requerido, sin valores NaN), la validación de que el índice temporal sea consciente de zona horaria, y la consistencia física de las características derivadas mediante pvlib: la elevación solar se anula a medianoche, el índice de claridad se mantiene en \[0, 1{,}2\], la irradiancia efectiva alcanza cero con nubosidad total y el factor de pérdida por temperatura se recorta al rango \[0, 1\] para cualquier entrada [@pvlib2024docs; @pedregosa2011sklearn].
+
+Las pruebas de `test_ml_model_service.py` validan el modelo de producción Havana v1 de extremo a extremo: verifican que el archivo `solar_production_havana_v1.pkl` se cargue correctamente, que los metadatos declaren exactamente las 14 características en el orden de `FEATURE_COLUMNS`, que el modelo sea de la familia Random Forest con R² diurno superior a 0,75, y que las predicciones sean físicamente consistentes —producción aproximada a cero en horas nocturnas, mayor al mediodía que por la mañana, mayor en día soleado que en día nublado, y directamente proporcional a la irradiancia incidente. Un conjunto adicional de casos verifica el escalado del factor de capacidad a kilovatios, operación que el backend realiza multiplicando la salida del modelo por la capacidad instalada leída de la base de datos [@breiman2001randomforests; @pvlib2024docs].
+
 ### Pruebas del frontend en TypeScript con Vitest
 
-El módulo de pruebas del frontend totaliza **77 pruebas unitarias** distribuidas en dos archivos, dedicados a las funciones puras de cálculo y de generación de predicciones del lado del cliente. La Tabla \ref{tbl:frontend-tests} resume la distribución.
+El módulo de pruebas del frontend totaliza **64 pruebas unitarias** distribuidas en dos archivos. Estos archivos ejercitan las **implementaciones de referencia** en TypeScript de los algoritmos de cálculo energético y de generación de predicciones —funciones puras que documentan y verifican la matemática central del sistema de forma independiente del entorno de ejecución del backend. La documentación técnica del proyecto describe explícitamente que las predicciones en producción provienen de los modelos ML del backend, y que estas implementaciones TypeScript se mantienen como referencia verificada de los algoritmos [@vitest2024docs]. La Tabla \ref{tbl:frontend-tests} resume la distribución.
 
 | Archivo                       | Pruebas | Funciones cubiertas                                                |
 |-------------------------------|---------|--------------------------------------------------------------------|
-| `calculations.test.ts`        | 48      | Métricas del sistema, flujo de energía, eficiencia, producción teórica, retorno de inversión, estrategia de batería, Performance Ratio |
-| `predictions.test.ts`         | 29      | Generación de predicciones horarias, integración con escenarios de apagón, generación de alertas |
-| **Total**                     | **77**  |                                                                    |
+| `calculations.test.ts`        | 40      | Métricas del sistema, flujo de energía, eficiencia, producción teórica, retorno de inversión, estrategia de batería, Performance Ratio |
+| `predictions.test.ts`         | 24      | Generación de predicciones horarias, integración con escenarios de apagón, generación de alertas |
+| **Total**                     | **64**  |                                                                    |
 
 : Distribución de pruebas del frontend. {#tbl:frontend-tests}
 
@@ -47,6 +62,6 @@ Las pruebas de `predictions.test.ts` cubren la generación de la serie de predic
 
 ### Cobertura y síntesis
 
-Considerando ambos conjuntos, el sistema acumula **163 pruebas unitarias automatizadas** que ejecutan en una fracción de segundo y verifican la totalidad de las funciones puras críticas del backend y del frontend. La organización por archivos por dominio (predicción, analítica, autenticación, cálculos, predicciones) facilita la lectura del reporte de ejecución y la localización de fallos cuando una prueba falla.
+Considerando ambos conjuntos, el sistema acumula **251 pruebas unitarias automatizadas** —187 en el backend Python y 64 en el frontend TypeScript— que ejecutan en menos de cuatro segundos en conjunto y verifican desde la ingeniería de características del modelo ML hasta las operaciones CRUD, pasando por la autenticación, la simulación de batería y los algoritmos de cálculo energético. La organización por archivos por dominio facilita la lectura del reporte de ejecución y la localización de fallos.
 
 Las limitaciones de la estrategia adoptada son explícitas. La validación no cubre el comportamiento del sistema bajo cargas concurrentes, ni las pruebas de extremo a extremo sobre la interfaz web, ni las pruebas de integración con la base de datos MongoDB. La cobertura del comportamiento ante fallos de las API externas (notablemente Open-Meteo) tampoco se verifica de manera automatizada, aunque el código contiene mecanismos de respaldo descritos en el Capítulo 2. Estas limitaciones se contemplan en el capítulo de Recomendaciones como vías de continuidad del trabajo. Una vez validados los modelos analíticos y el software que los expone, el siguiente epígrafe documenta la prueba operativa del sistema sobre la microrred CUJAE.
