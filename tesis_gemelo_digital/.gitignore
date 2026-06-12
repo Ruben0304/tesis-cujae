@@ -48,4 +48,6 @@ backend/.venv/
 backend/env/
 backend/.env
 backend/*.egg-info/
-backend/notebooks/
+backend/notebooks/datasets/
+backend/notebooks/__pycache__/
+backend/notebooks/modelos_train/solar_production_havana_v1.pkl
